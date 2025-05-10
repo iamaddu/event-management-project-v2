@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EventSphere - My Registrations</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary-color: #00c3ff;
+      --secondary-color: #009ac1;
+      --dark-bg: rgba(0, 0, 0, 0.8);
+      --light-bg: rgba(255, 255, 255, 0.1);
+      --text-color: #ffffff;
+      --text-muted: #cccccc;
+      --success-color: #4CAF50;
+      --warning-color: #FFC107;
+      --danger-color: #f44336;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), 
+                  url('https://images.unsplash.com/photo-1531058020387-3be344556be6?auto=format&fit=crop&w=1950&q=80') no-repeat center center/cover;
+      background-attachment: fixed;
+      color: var(--text-color);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      background: var(--dark-bg);
+      padding: 20px 0;
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      color: var(--primary-color);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+    }
+
+    .logo i {
+      margin-right: 10px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 20px;
+    }
+
+    .nav-links a {
+      color: var(--text-color);
+      text-decoration: none;
+      font-size: 16px;
+      transition: color 0.3s;
+      position: relative;
+    }
+
+    .nav-links a:hover {
+      color: var(--primary-color);
+    }
+
+    .nav-links a.active {
+      color: var(--primary-color);
+    }
+
+    .nav-links a.active::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: var(--primary-color);
+    }
+
+    .back-button {
+      color: var(--text-color);
+      text-decoration: none;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 8px 15px;
+      background: var(--light-bg);
+      border-radius: 20px;
+      width: fit-content;
+      transition: all 0.3s;
+    }
+
+    .back-button:hover {
+      background: rgba(0, 195, 255, 0.2);
+    }
+
+    .back-button i {
+      margin-right: 8px;
+    }
+
+    .page-title {
+      font-size: 36px;
+      margin-bottom: 30px;
+      color: var(--primary-color);
+      text-align: center;
+      position: relative;
+      padding-bottom: 15px;
+    }
+
+    .page-title::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100px;
+      height: 3px;
+      background: var(--primary-color);
+      border-radius: 3px;
+    }
+
+    .section-title {
+      font-size: 24px;
+      margin: 30px 0 20px;
+      color: var(--primary-color);
+      border-bottom: 2px solid var(--primary-color);
+      padding-bottom: 10px;
+      display: flex;
+      align-items: center;
+    }
+
+    .section-title i {
+      margin-right: 10px;
+    }
+
+    .registrations-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 30px;
+      margin-bottom: 50px;
+    }
+
+    .registration-card {
+      background: var(--dark-bg);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s;
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--light-bg);
+      position: relative;
+    }
+
+    .registration-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    }
+
+    .event-image {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+    }
+
+    .registration-badge {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .badge-confirmed {
+      background: var(--success-color);
+      color: white;
+    }
+
+    .badge-pending {
+      background: var(--warning-color);
+      color: #000;
+    }
+
+    .badge-cancelled {
+      background: var(--danger-color);
+      color: white;
+    }
+
+    .registration-content {
+      padding: 20px;
+    }
+
+    .event-title {
+      font-size: 22px;
+      margin-bottom: 10px;
+      color: var(--primary-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .event-date {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+    }
+
+    .event-date i {
+      margin-right: 8px;
+      color: var(--primary-color);
+    }
+
+    .registration-details {
+      margin: 15px 0;
+      padding: 15px 0;
+      border-top: 1px solid var(--light-bg);
+      border-bottom: 1px solid var(--light-bg);
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .detail-label {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .detail-value {
+      font-weight: 500;
+    }
+
+    .ticket-type {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 15px;
+      font-size: 12px;
+      background: rgba(0, 195, 255, 0.2);
+      color: var(--primary-color);
+    }
+
+    .registration-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 14px;
+      flex: 1;
+    }
+
+    .btn i {
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--secondary-color);
+      transform: translateY(-2px);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--primary-color);
+      border: 1px solid var(--primary-color);
+    }
+
+    .btn-outline:hover {
+      background: rgba(0, 195, 255, 0.1);
+    }
+
+    .btn-danger {
+      background: var(--danger-color);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #d32f2f;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 50px 20px;
+      grid-column: 1 / -1;
+    }
+
+    .empty-state i {
+      font-size: 60px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+
+    .empty-state h3 {
+      color: var(--primary-color);
+      margin-bottom: 15px;
+    }
+
+    .empty-state p {
+      color: var(--text-muted);
+      max-width: 500px;
+      margin: 0 auto 20px;
+    }
+
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: var(--dark-bg);
+      border-radius: 10px;
+      padding: 20px;
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--light-bg);
+      text-align: center;
+      transition: all 0.3s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-value {
+      font-size: 36px;
+      font-weight: bold;
+      color: var(--primary-color);
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .filter-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 25px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 8px 16px;
+      border-radius: 20px;
+      background: var(--light-bg);
+      color: var(--text-color);
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .filter-btn i {
+      font-size: 12px;
+    }
+
+    .filter-btn:hover {
+      background: rgba(0, 195, 255, 0.2);
+    }
+
+    .filter-btn.active {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    footer {
+      background: var(--dark-bg);
+      padding: 30px 0;
+      margin-top: 50px;
+      backdrop-filter: blur(8px);
+    }
+
+    .footer-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 30px;
+    }
+
+    .footer-section {
+      flex: 1;
+      min-width: 250px;
+    }
+
+    .footer-section h3 {
+      color: var(--primary-color);
+      margin-bottom: 15px;
+    }
+
+    .footer-section p, .footer-section a {
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: block;
+      text-decoration: none;
+    }
+
+    .footer-section a:hover {
+      color: var(--primary-color);
+    }
+
+    .social-links {
+      display: flex;
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .social-links a {
+      color: var(--text-color);
+      font-size: 20px;
+      transition: color 0.3s;
+    }
+
+    .social-links a:hover {
+      color: var(--primary-color);
+    }
+
+    .copyright {
+      text-align: center;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid var(--light-bg);
+      color: var(--text-muted);
+    }
+
+    /* Confirmation Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-content {
+      background: var(--dark-bg);
+      border-radius: 15px;
+      padding: 30px;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      border: 1px solid var(--light-bg);
+      animation: modalFadeIn 0.3s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .modal-icon {
+      font-size: 60px;
+      margin-bottom: 20px;
+    }
+
+    .success-icon {
+      color: var(--success-color);
+    }
+
+    .warning-icon {
+      color: var(--warning-color);
+    }
+
+    .modal-title {
+      font-size: 24px;
+      margin-bottom: 15px;
+      color: var(--primary-color);
+    }
+
+    .modal-message {
+      margin-bottom: 25px;
+      color: var(--text-muted);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+    }
+
+    /* Responsive styles */
+    @media (max-width: 992px) {
+      .header-content {
+        flex-direction: column;
+        gap: 15px;
+      }
+      
+      .nav-links {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .registrations-container {
+        grid-template-columns: 1fr;
+      }
+      
+      .page-title {
+        font-size: 28px;
+      }
+      
+      .section-title {
+        font-size: 22px;
+      }
+
+      .stats-container {
+        grid-template-columns: 1fr;
+      }
+
+      .registration-actions {
+        flex-direction: column;
+      }
+    }
+
+    /* Loading spinner */
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: var(--primary-color);
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <a href="home.html" class="logo">
+        <i class="fas fa-calendar-alt"></i> EventSphere
+      </a>
+      <div class="nav-links">
+        <a href="event.html">All Events</a>
+        <a href="myregistration.html" class="active">My Registrations</a>
+        <a href="profile.html">Profile</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <a href="home.html" class="back-button">
+      <i class="fas fa-arrow-left"></i> Back to Home
+    </a>
+
+    <h1 class="page-title">My Registrations</h1>
+
+    <!-- Registration Stats -->
+    <div class="stats-container">
+      <div class="stat-card">
+        <div class="stat-value" id="totalRegistrations">0</div>
+        <div class="stat-label">Total Registrations</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="upcomingEvents">0</div>
+        <div class="stat-label">Upcoming Events</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalSpent">$0</div>
+        <div class="stat-label">Total Spent</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="favoriteCategory">-</div>
+        <div class="stat-label">Favorite Category</div>
+      </div>
+    </div>
+
+    <!-- Filter Controls -->
+    <div class="filter-container">
+      <button class="filter-btn active" data-filter="all">
+        <i class="fas fa-list"></i> All
+      </button>
+      <button class="filter-btn" data-filter="upcoming">
+        <i class="fas fa-calendar-check"></i> Upcoming
+      </button>
+      <button class="filter-btn" data-filter="past">
+        <i class="fas fa-history"></i> Past Events
+      </button>
+      <button class="filter-btn" data-filter="confirmed">
+        <i class="fas fa-check-circle"></i> Confirmed
+      </button>
+      <button class="filter-btn" data-filter="cancelled">
+        <i class="fas fa-times-circle"></i> Cancelled
+      </button>
+    </div>
+
+    <!-- Registrations Grid -->
+    <h2 class="section-title">
+      <i class="fas fa-ticket-alt"></i> Your Event Registrations
+    </h2>
+    <div class="registrations-container" id="registrationsContainer">
+      <!-- Registrations will be loaded here from the API -->
+      <div class="empty-state">
+        <i class="fas fa-calendar-plus"></i>
+        <h3>No Registrations Yet</h3>
+        <p>You haven't registered for any events yet. Browse our upcoming events to get started!</p>
+        <a href="event.html" class="btn btn-primary">
+          <i class="fas fa-search"></i> Browse Events
+        </a>
+      </div>
+    </div>
+
+    <!-- Calendar Section -->
+    <h2 class="section-title">
+      <i class="fas fa-calendar-alt"></i> Your Event Calendar
+    </h2>
+    <div id="calendarPlaceholder" style="background: var(--dark-bg); border-radius: 12px; padding: 20px; margin-bottom: 50px; text-align: center;">
+      <p>Your personalized event calendar will appear here</p>
+      <p><small>Connect your calendar to see all your events in one place</small></p>
+      <button class="btn btn-outline" style="margin-top: 15px;">
+        <i class="fas fa-calendar-plus"></i> Connect Calendar
+      </button>
+    </div>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div class="modal" id="confirmationModal">
+    <div class="modal-content">
+      <div class="modal-icon success-icon">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <h3 class="modal-title">Cancellation Confirmed</h3>
+      <p class="modal-message">Your registration has been successfully cancelled. A refund will be processed within 5-7 business days.</p>
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="modalCloseBtn">Close</button>
+        <button class="btn btn-primary" id="modalContactBtn">Contact Support</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-content">
+      <div class="footer-section">
+        <h3>About EventSphere</h3>
+        <p>Your premier destination for discovering and registering for conferences, workshops, and networking events worldwide.</p>
+      </div>
+      
+      <div class="footer-section">
+        <h3>Quick Links</h3>
+        <a href="event.html">Browse Events</a>
+        <a href="registration.html">My Registrations</a>
+        <a href="contact.html">Contact Us</a>
+      </div>
+      
+      <div class="footer-section">
+        <h3>Connect With Us</h3>
+        <div class="social-links">
+          <a href="#"><i class="fab fa-facebook-f"></i></a>
+          <a href="#"><i class="fab fa-twitter"></i></a>
+          <a href="#"><i class="fab fa-linkedin-in"></i></a>
+          <a href="#"><i class="fab fa-instagram"></i></a>
+        </div>
+        <p>info@eventsphere.com</p>
+        <p>+1 (555) 123-4567</p>
+      </div>
+    </div>
+    
+    <div class="copyright">
+      &copy; 2025 EventSphere. All rights reserved.
+    </div>
+  </footer>
+
+  <script>
+    // DOM Elements
+    const registrationsContainer = document.getElementById('registrationsContainer');
+    const totalRegistrations = document.getElementById('totalRegistrations');
+    const upcomingStats = document.getElementById('upcomingEvents');
+    const totalSpent = document.getElementById('totalSpent');
+    const favoriteCategory = document.getElementById('favoriteCategory');
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const confirmationModal = document.getElementById('confirmationModal');
+    const modalCloseBtn = document.getElementById('modalCloseBtn');
+    const modalContactBtn = document.getElementById('modalContactBtn');
+
+    // Called on page load to fetch registrations from the backend
+    async function fetchMyRegistrations() {
+      const token = localStorage.getItem('token');
+      console.log('Token:', token);
+      if (!token) {
+        console.error('No token found. Please log in.');
+        registrationsContainer.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-exclamation-circle"></i>
+            <h3>Please log in to view your registrations.</h3>
+            <a href="login.html" class="btn btn-primary">
+              <i class="fas fa-sign-in-alt"></i> Login
+            </a>
+          </div>`;
+        return;
+      }
+      
+      try {
+        const response = await fetch('/my-registrations', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log('Response status:', response.status);
+        if (response.status === 401 || response.status === 403) {
+          console.warn('Unauthorized or forbidden. Removing token and redirecting to login.');
+          localStorage.removeItem('token');
+          window.location.href = 'login.html';
+          return;
+        }
+        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+        const registrations = await response.json();
+        console.log('Registrations data:', registrations);
+        renderRegistrations(registrations);
+        updateStats(registrations);
+      } catch (error) {
+        console.error('Error fetching registrations:', error);
+        registrationsContainer.innerHTML = '<p>Failed to load registrations.</p>';
+      }
+    }
+
+    // Initialize the page
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchMyRegistrations();
+      
+      // Setup filter buttons
+      filterButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          filterButtons.forEach(btn => btn.classList.remove('active'));
+          button.classList.add('active');
+          filterRegistrations(button.dataset.filter);
+        });
+      });
+      
+      // Modal event listeners
+      modalCloseBtn.addEventListener('click', () => {
+        confirmationModal.style.display = 'none';
+      });
+      
+      modalContactBtn.addEventListener('click', () => {
+        alert('Redirecting to support...');
+        confirmationModal.style.display = 'none';
+      });
+    });
+
+    // Render registration cards
+    function renderRegistrations(registrations) {
+      if (registrations.length === 0) {
+        registrationsContainer.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-calendar-plus"></i>
+            <h3>No Registrations Found</h3>
+            <p>You don't have any registrations matching your current filter.</p>
+            <a href="event.html" class="btn btn-primary">
+              <i class="fas fa-search"></i> Browse Events
+            </a>
+          </div>
+        `;
+        return;
+      }
+      
+      registrationsContainer.innerHTML = registrations.map(reg => `
+        <div class="registration-card" data-status="${reg.status}" data-date="${reg.event_date}">
+          <img src="${reg.image}" alt="${reg.event_name}" class="event-image">
+          <div class="registration-badge ${getBadgeClass(reg.status)}">
+            ${reg.status.charAt(0).toUpperCase() + reg.status.slice(1)}
+          </div>
+          <div class="registration-content">
+            <h3 class="event-title">
+              ${reg.event_name}
+              <span class="ticket-type">${getTicketTypeLabel(reg.ticket_type)}</span>
+            </h3>
+            <div class="event-date">
+              <i class="far fa-calendar-alt"></i>
+              ${formatDate(reg.event_date)}
+            </div>
+            <div class="registration-details">
+              <div class="detail-row">
+                <span class="detail-label">Venue:</span>
+                <span class="detail-value">${reg.venue}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Tickets:</span>
+                <span class="detail-value">${reg.quantity}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Total Paid:</span>
+                <span class="detail-value">$${reg.total_price.toFixed(2)}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Booked On:</span>
+                <span class="detail-value">${formatDate(reg.purchase_date, true)}</span>
+              </div>
+            </div>
+            <div class="registration-actions">
+              ${reg.status === 'confirmed' ? `
+                <button class="btn btn-outline view-ticket-btn" data-reg-id="${reg.id}">
+                  <i class="fas fa-ticket-alt"></i> View Ticket
+                </button>
+                <button class="btn btn-danger cancel-btn" data-reg-id="${reg.id}">
+                  <i class="fas fa-times"></i> Cancel
+                </button>
+              ` : `
+                <button class="btn btn-outline" disabled>
+                  <i class="fas fa-ban"></i> Cancelled
+                </button>
+                <button class="btn btn-primary rebook-btn" data-event-id="${reg.event_id}">
+                  <i class="fas fa-redo"></i> Rebook
+                </button>
+              `}
+            </div>
+          </div>
+        </div>
+      `).join('');
+      
+      // Add event listeners to dynamically created buttons
+      document.querySelectorAll('.view-ticket-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const regId = e.target.closest('button').dataset.regId;
+          viewTicket(regId);
+        });
+      });
+      
+      document.querySelectorAll('.cancel-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const regId = e.target.closest('button').dataset.regId;
+          cancelRegistration(regId);
+        });
+      });
+      
+      document.querySelectorAll('.rebook-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const eventId = e.target.closest('button').dataset.eventId;
+          rebookEvent(eventId);
+        });
+      });
+    }
+
+    // Filter registrations
+    function filterRegistrations(filter) {
+      const cards = document.querySelectorAll('.registration-card');
+      const now = new Date();
+      
+      cards.forEach(card => {
+        const status = card.dataset.status;
+        const eventDate = new Date(card.dataset.date);
+        let show = true;
+        
+        switch(filter) {
+          case 'upcoming':
+            show = status === 'confirmed' && eventDate > now;
+            break;
+          case 'past':
+            show = eventDate < now;
+            break;
+          case 'confirmed':
+            show = status === 'confirmed';
+            break;
+          case 'cancelled':
+            show = status === 'cancelled';
+            break;
+          // "all" shows everything
+        }
+        
+        card.style.display = show ? 'block' : 'none';
+      });
+      
+      // If no cards are visible, display empty state
+      const visibleCards = Array.from(cards).some(card => card.style.display !== 'none');
+      if (!visibleCards) {
+        registrationsContainer.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-calendar-plus"></i>
+            <h3>No Registrations Found</h3>
+            <p>You don't have any registrations matching your current filter.</p>
+            <a href="event.html" class="btn btn-primary">
+              <i class="fas fa-search"></i> Browse Events
+            </a>
+          </div>
+        `;
+      }
+    }
+
+    // Update statistics
+    function updateStats(registrations) {
+      const now = new Date();
+      
+      // Total registrations
+      totalRegistrations.textContent = registrations.length;
+      
+      // Upcoming events: only confirmed events in the future
+      const upcoming = registrations.filter(reg => {
+        const eventDate = new Date(reg.event_date);
+        return reg.status === 'confirmed' && eventDate > now;
+      }).length;
+      upcomingStats.textContent = upcoming;
+      
+      // Total spent (exclude cancelled)
+      const spent = registrations.reduce((sum, reg) => {
+        return reg.status === 'cancelled' ? sum : sum + reg.total_price;
+      }, 0);
+      totalSpent.textContent = `$${spent.toFixed(2)}`;
+      
+      // Favorite category: most registered (non-cancelled)
+      if (registrations.length > 0) {
+        const categoryCount = {};
+        registrations.forEach(reg => {
+          if (reg.status !== 'cancelled') {
+            categoryCount[reg.category] = (categoryCount[reg.category] || 0) + 1;
+          }
+        });
+        
+        const favorite = Object.entries(categoryCount).reduce((max, entry) => {
+          return entry[1] > max[1] ? entry : max;
+        }, ['', 0]);
+        
+        favoriteCategory.textContent = favorite[0] || '-';
+      }
+    }
+
+    // Helper functions
+    function getBadgeClass(status) {
+      return status === 'confirmed' ? 'badge-confirmed' :
+             status === 'cancelled' ? 'badge-cancelled' : 'badge-pending';
+    }
+
+    function getTicketTypeLabel(type) {
+      const labels = {
+        'standard': 'Standard',
+        'vip': 'VIP',
+        'premium': 'Premium',
+        'student': 'Student'
+      };
+      return labels[type] || type;
+    }
+
+    function formatDate(dateString, includeTime = false) {
+      const options = { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        ...(includeTime && { hour: '2-digit', minute: '2-digit' })
+      };
+      return new Date(dateString).toLocaleString('en-US', options);
+    }
+
+    // Action functions
+    function viewTicket(registrationId) {
+      // Implement the ticket viewing functionality as needed
+      alert(`Viewing ticket for registration ${registrationId}`);
+    }
+
+    function cancelRegistration(registrationId) {
+      // Call your API to cancel the registration if desired.
+      // For demo, simply show the confirmation modal.
+      confirmationModal.style.display = 'flex';
+    }
+
+    function rebookEvent(eventId) {
+      // Redirect the user to the event page for rebooking.
+      alert(`Redirecting to event ${eventId} for rebooking...`);
+    }
+  </script>
+</body>
+</html>

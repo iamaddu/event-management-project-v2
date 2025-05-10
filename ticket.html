@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EventSphere - Ticket Purchase</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Reset and Base Styles */
+    :root {
+      --primary: #00c3ff;
+      --primary-dark: #009ac1;
+      --secondary: #ff4d7d;
+      --dark: #0f172a;
+      --light: #f8fafc;
+      --gray: #94a3b8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --error: #ef4444;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      color: var(--light);
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Header Styles */
+    header {
+      background: rgba(15, 23, 42, 0.9);
+      padding: 1.5rem 0;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      position: relative;
+      z-index: 10;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: 1px;
+    }
+
+    /* Navigation Styles */
+    nav {
+      background: rgba(15, 23, 42, 0.8);
+      padding: 1rem 0;
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      padding: 0 2rem;
+    }
+
+    nav a {
+      text-decoration: none;
+      color: var(--light);
+      font-size: 1.1rem;
+      font-weight: 500;
+      padding: 0.75rem 1.5rem;
+      border-radius: 50px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    nav a::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: 0.5s;
+    }
+
+    nav a:hover {
+      background: rgba(0, 195, 255, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0, 195, 255, 0.3);
+    }
+
+    nav a:hover::before {
+      left: 100%;
+    }
+
+    nav a.active {
+      background: var(--primary);
+      color: var(--dark);
+      font-weight: 600;
+    }
+
+    /* Main Content Styles */
+    .content {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 3rem 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .content::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(5px);
+      z-index: 1;
+    }
+
+    .ticket-purchase-container {
+      background: rgba(15, 23, 42, 0.8);
+      border-radius: 16px;
+      padding: 3rem;
+      width: 100%;
+      max-width: 800px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      position: relative;
+      z-index: 2;
+      transform-style: preserve-3d;
+      transition: transform 0.5s ease, box-shadow 0.5s ease;
+    }
+
+    .ticket-purchase-container:hover {
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .ticket-purchase-container::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(45deg, var(--primary), var(--secondary));
+      z-index: -1;
+      border-radius: 18px;
+      opacity: 0.7;
+      transition: opacity 0.5s ease;
+    }
+
+    .ticket-purchase-container:hover::before {
+      opacity: 1;
+    }
+
+    .ticket-purchase-container h2 {
+      font-size: 2.2rem;
+      margin-bottom: 2rem;
+      text-align: center;
+      color: var(--light);
+      position: relative;
+      display: inline-block;
+      width: 100%;
+    }
+
+    .ticket-purchase-container h2::after {
+      content: '';
+      display: block;
+      width: 100px;
+      height: 4px;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      margin: 0.5rem auto 0;
+      border-radius: 2px;
+    }
+
+    /* Form Styles */
+    .form-group {
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 1rem;
+      color: var(--gray);
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 1rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--light);
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      background: rgba(255, 255, 255, 0.15);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(0, 195, 255, 0.2);
+    }
+
+    .form-group input:disabled {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--gray);
+    }
+
+    .form-group button {
+      width: 100%;
+      padding: 1.2rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      border: none;
+      color: var(--dark);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-top: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .form-group button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      transition: 0.5s;
+    }
+
+    .form-group button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .form-group button:hover::before {
+      left: 100%;
+    }
+
+    .form-group button:active {
+      transform: translateY(-1px);
+    }
+
+    /* Event Details Section */
+    .event-details {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      border-left: 4px solid var(--primary);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .event-details:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .event-details h3 {
+      font-size: 1.3rem;
+      margin-bottom: 1rem;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .event-details h3 i {
+      font-size: 1.5rem;
+    }
+
+    /* Price Section */
+    .price-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .price-section:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .price-item {
+      text-align: center;
+      transition: transform 0.3s ease;
+    }
+
+    .price-item:hover {
+      transform: scale(1.05);
+    }
+
+    .price-item .label {
+      font-size: 0.9rem;
+      color: var(--gray);
+      margin-bottom: 0.5rem;
+    }
+
+    .price-item .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--light);
+    }
+
+    .total-price .value {
+      color: var(--primary);
+      font-size: 2rem;
+      position: relative;
+    }
+
+    .total-price .value::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      transform: scaleX(0);
+      transform-origin: right;
+      transition: transform 0.3s ease;
+    }
+
+    .total-price:hover .value::after {
+      transform: scaleX(1);
+      transform-origin: left;
+    }
+
+    /* Footer Styles */
+    footer {
+      background: rgba(15, 23, 42, 0.9);
+      padding: 1.5rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--gray);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+    }
+
+    .social-links {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      margin: 1rem 0;
+    }
+
+    .social-links a {
+      color: var(--gray);
+      font-size: 1.2rem;
+      transition: all 0.3s ease;
+      transform: translateY(0);
+    }
+
+    .social-links a:hover {
+      color: var(--primary);
+      transform: translateY(-3px);
+    }
+
+    /* Confirmation Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 16px;
+      padding: 3rem;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transform: scale(0.9) translateY(20px);
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .modal.active .modal-content {
+      transform: scale(1) translateY(0);
+    }
+
+    .modal-content::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+    }
+
+    .modal-icon {
+      font-size: 4rem;
+      color: var(--success);
+      margin-bottom: 1.5rem;
+      animation: bounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) both;
+    }
+
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-30px); }
+      60% { transform: translateY(-15px); }
+    }
+
+    .modal h3 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      color: var(--light);
+    }
+
+    .modal p {
+      color: var(--gray);
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+
+    .modal-btn {
+      padding: 0.8rem 2rem;
+      background: var(--primary);
+      color: var(--dark);
+      border: none;
+      border-radius: 50px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .modal-btn:hover {
+      background: var(--primary-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 195, 255, 0.3);
+    }
+
+    .modal-btn::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      transform: translateX(-100%);
+      transition: transform 0.5s ease;
+    }
+
+    .modal-btn:hover::after {
+      transform: translateX(100%);
+    }
+
+    /* Floating Ticket Animation */
+    .ticket-visual {
+      position: absolute;
+      width: 200px;
+      height: 120px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+      border-radius: 12px;
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 1rem;
+      opacity: 0;
+      transform: scale(0.8) translateY(20px);
+      transition: all 0.5s ease;
+      pointer-events: none;
+    }
+
+    .ticket-visual::before {
+      content: '';
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      border: 1px dashed rgba(255,255,255,0.2);
+      border-radius: 6px;
+      pointer-events: none;
+    }
+
+    .ticket-visual.active {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+
+    .ticket-visual .event-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--light);
+    }
+
+    .ticket-visual .ticket-type {
+      font-size: 0.8rem;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .ticket-visual .price {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--light);
+      margin-top: 0.5rem;
+    }
+
+    /* Responsive Design */
+    @media screen and (max-width: 768px) {
+      header h1 {
+        font-size: 2rem;
+      }
+
+      .nav-container {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      nav a {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+      }
+
+      .ticket-purchase-container {
+        padding: 2rem;
+      }
+
+      .ticket-purchase-container h2 {
+        font-size: 1.8rem;
+      }
+
+      .price-section {
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .ticket-visual {
+        display: none;
+      }
+    }
+
+    @media screen and (max-width: 480px) {
+      .ticket-purchase-container {
+        padding: 1.5rem;
+      }
+
+      .form-group input,
+      .form-group select {
+        padding: 0.8rem;
+      }
+
+      .form-group button {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header Section -->
+  <header>
+    <h1>EventSphere</h1>
+  </header>
+
+  <!-- Navigation Menu -->
+  <nav>
+    <div class="nav-container">
+      <a href="home.html"><i class="fas fa-home"></i> Home</a>
+      <a href="event.html"><i class="fas fa-calendar-alt"></i> Events</a>
+      <a href="mytickets.html"><i class="fas fa-ticket-alt"></i> My Tickets</a>
+    </div>
+  </nav>
+
+  <!-- Content Section -->
+  <div class="content">
+    <div class="ticket-purchase-container">
+      <h2>Complete Your Purchase</h2>
+      <div class="form-group">
+        <label for="event-select">Select Event</label>
+        <select id="event-select">
+          <option value="">-- Select an Event --</option>
+        </select>
+      </div>
+      
+
+      <!-- Ticket Visual (floating element) -->
+      <div class="ticket-visual" id="ticketVisual">
+        <div class="event-name" id="visualEventName">Event Name</div>
+        <div class="ticket-type">General Admission</div>
+        <div class="price">$100.00</div>
+      </div>
+
+      <!-- Event Details Section -->
+      <div class="event-details">
+        <h3><i class="fas fa-info-circle"></i> Event Information</h3>
+        <div class="form-group">
+          <label for="event-name">Event Name</label>
+          <input type="text" id="event-name" disabled>
+        </div>
+
+        <div class="form-group">
+          <label for="venue">Venue</label>
+          <input type="text" id="venue" disabled>
+        </div>
+
+        <div class="form-group">
+          <label for="date">Date & Time</label>
+          <input type="text" id="date" disabled>
+        </div>
+      </div>
+
+      <!-- Ticket Selection -->
+      <div class="form-group">
+        <label for="ticket-type">Ticket Type</label>
+        <select id="ticket-type">
+          <option value="general">General Admission - $100</option>
+          <option value="vip">VIP Pass - $250</option>
+          <option value="student">Student Ticket - $75</option>
+          <option value="premium">Premium Experience - $500</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="ticket-quantity">Number of Tickets</label>
+        <select id="ticket-quantity">
+          <option value="1">1 Ticket</option>
+          <option value="2">2 Tickets</option>
+          <option value="3">3 Tickets</option>
+          <option value="4">4 Tickets</option>
+          <option value="5">5 Tickets</option>
+        </select>
+      </div>
+
+      <!-- Price Summary -->
+      <div class="price-section">
+        <div class="price-item">
+          <div class="label">Ticket Price</div>
+          <div class="value">$100.00</div>
+        </div>
+        <div class="price-item">
+          <div class="label">Quantity</div>
+          <div class="value">1</div>
+        </div>
+        <div class="price-item total-price">
+          <div class="label">Total</div>
+          <div class="value">$100.00</div>
+        </div>
+      </div>
+
+      <!-- Payment Method -->
+      <div class="form-group">
+        <label for="payment-method">Payment Method</label>
+        <select id="payment-method">
+          <option value="credit_card">Credit Card</option>
+          <option value="debit_card">Debit Card</option>
+          <option value="paypal">PayPal</option>
+          <option value="crypto">Cryptocurrency</option>
+        </select>
+      </div>
+
+      <!-- Terms and Conditions -->
+      <div class="form-group" style="text-align: center; margin-top: 2rem;">
+        <input type="checkbox" id="terms" style="width: auto; display: inline-block; margin-right: 10px;">
+        <label for="terms" style="display: inline-block; color: var(--gray); font-size: 0.9rem;">
+          I agree to the <a href="#" style="color: var(--primary); text-decoration: none;">Terms & Conditions</a>
+        </label>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="form-group">
+        <button id="purchase-btn">
+          <i class="fas fa-lock"></i> Complete Secure Purchase
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div class="modal" id="confirmationModal">
+    <div class="modal-content">
+      <div class="modal-icon">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <h3>Purchase Successful!</h3>
+      <p>Your tickets for <strong id="modalEventName">Event Name</strong> have been confirmed. A receipt has been sent to your email.</p>
+      <p>You can view and manage your tickets in the <a href="mytickets.html" style="color: var(--primary); text-decoration: none;">My Tickets</a> section.</p>
+      <button class="modal-btn" id="closeModal">Continue</button>
+    </div>
+  </div>
+
+  <!-- Footer Section -->
+  <footer>
+    <div class="social-links">
+      <a href="#"><i class="fab fa-facebook-f"></i></a>
+      <a href="#"><i class="fab fa-twitter"></i></a>
+      <a href="#"><i class="fab fa-instagram"></i></a>
+      <a href="#"><i class="fab fa-linkedin-in"></i></a>
+    </div>
+    <p>&copy; 2025 EventSphere. All Rights Reserved.</p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;">Designed with <i class="fas fa-heart" style="color: var(--secondary);"></i> for event enthusiasts</p>
+  </footer>
+
+  <script>
+    function authFetch(url, options = {}) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+          alert('Session expired or not logged in. Please log in again.');
+          window.location.href = 'login.html';
+          return Promise.reject(new Error('No token found'));
+      }
+      options.headers = options.headers || {};
+      options.headers['Authorization'] = `Bearer ${token}`;
+      return fetch(url, options);
+    }
+
+    // Fetch events and populate the dropdown
+    const eventSelect = document.getElementById('event-select');
+const ticketTypeSelect = document.getElementById('ticket-type');
+const ticketQuantitySelect = document.getElementById('ticket-quantity');
+const priceValueElements = document.querySelectorAll('.price-item .value');
+const totalPriceElement = document.querySelector('.total-price .value');
+const ticketVisualPrice = document.querySelector('.ticket-visual .price');
+const ticketVisualType = document.querySelector('.ticket-visual .ticket-type');
+
+function updatePrices() {
+  const selectedOption = eventSelect.options[eventSelect.selectedIndex];
+  if (!selectedOption || !selectedOption.value) {
+    // No event selected, reset prices
+    priceValueElements.forEach(el => el.textContent = '$0.00');
+    totalPriceElement.textContent = '$0.00';
+    ticketVisualPrice.textContent = '$0.00';
+    return;
+  }
+
+  // Get prices from selected event option data attributes
+  const prices = {
+    general: parseFloat(selectedOption.dataset.priceStandard) || 0,
+    vip: parseFloat(selectedOption.dataset.priceVip) || 0,
+    student: 75, // Fixed price for student tickets
+    premium: parseFloat(selectedOption.dataset.pricePremium) || 0,
+  };
+
+  // Update individual price display
+  priceValueElements[0].textContent = `$${prices.general.toFixed(2)}`;
+  priceValueElements[1].textContent = `$${ticketQuantitySelect.value}`;
+  // Total price calculation
+  const ticketType = ticketTypeSelect.value;
+  const quantity = parseInt(ticketQuantitySelect.value) || 1;
+  const totalPrice = prices[ticketType] * quantity;
+
+  totalPriceElement.textContent = `$${totalPrice.toFixed(2)}`;
+  ticketVisualPrice.textContent = `$${totalPrice.toFixed(2)}`;
+  ticketVisualType.textContent = ticketType.charAt(0).toUpperCase() + ticketType.slice(1).replace('_', ' ');
+}
+
+// Update prices when event, ticket type, or quantity changes
+eventSelect.addEventListener('change', updatePrices);
+ticketTypeSelect.addEventListener('change', updatePrices);
+ticketQuantitySelect.addEventListener('change', updatePrices);
+
+// Initial price update on page load
+window.addEventListener('DOMContentLoaded', updatePrices);
+
+    fetch('/events')
+      .then((response) => response.json())
+      .then((events) => {
+        const eventSelect = document.getElementById('event-select');
+        events.forEach((event) => {
+          const option = document.createElement('option');
+          option.value = event.id;
+          option.textContent = `${event.title} - ${event.start ? new Date(event.start).toLocaleString() : 'N/A'}`;
+          option.dataset.priceStandard = event.price_standard;
+          option.dataset.priceVip = event.price_vip;
+          option.dataset.pricePremium = event.price_premium;
+          option.dataset.location = event.location;
+          option.dataset.venue = event.venue;
+          eventSelect.appendChild(option);
+        });
+      })
+      .catch((error) => {
+        console.error('Error fetching events:', error);
+        alert('Failed to load events. Please try again later.');
+      });
+
+    // Update event details when an event is selected
+    document.getElementById('event-select').addEventListener('change', function () {
+      const selectedOption = this.options[this.selectedIndex];
+      if (selectedOption.value) {
+        document.getElementById('event-name').value = selectedOption.textContent.split(' - ')[0]; // Use title
+        document.getElementById('venue').value = selectedOption.dataset.venue;
+        document.getElementById('date').value = selectedOption.textContent.split(' - ')[1];
+      } else {
+        document.getElementById('event-name').value = '';
+        document.getElementById('venue').value = '';
+        document.getElementById('date').value = '';
+      }
+    });
+
+    document.getElementById('purchase-btn').addEventListener('click', function (e) {
+  e.preventDefault();
+
+  // Validate terms checkbox
+  if (!document.getElementById('terms').checked) {
+    alert('Please agree to the Terms & Conditions to proceed with your purchase.');
+    return;
+  }
+
+  // Collect purchase details
+  const eventSelect = document.getElementById('event-select');
+  const event_id = eventSelect.value;
+  const ticket_type = document.getElementById('ticket-type').value;
+  const quantity = parseInt(document.getElementById('ticket-quantity').value);
+  const payment_method = document.getElementById('payment-method').value;
+
+  if (!event_id) {
+    alert('Please select an event.');
+    return;
+  }
+
+  const prices = {
+    general: parseFloat(eventSelect.options[eventSelect.selectedIndex].dataset.priceStandard),
+    vip: parseFloat(eventSelect.options[eventSelect.selectedIndex].dataset.priceVip),
+    student: 75, // Fixed price for student tickets
+    premium: parseFloat(eventSelect.options[eventSelect.selectedIndex].dataset.pricePremium),
+  };
+
+  const total_price = quantity * prices[ticket_type];
+
+  // Send purchase details to the backend
+  authFetch('/purchase-ticket', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_id, ticket_type, quantity, total_price, payment_method }),
+  })
+    .then((response) => {
+      if (!response.ok) {
+        return response.json().then(err => { throw new Error(err.error || 'Failed to complete purchase'); });
+      }
+      return response.json();
+    })
+    .then((data) => {
+      console.log('Purchase successful:', data);
+      // Show confirmation modal
+      document.getElementById('modalEventName').textContent = eventSelect.options[eventSelect.selectedIndex].textContent.split(' - ')[0];
+      document.getElementById('confirmationModal').classList.add('active');
+    })
+    .catch((error) => {
+      console.error('Error:', error.message);
+      alert('Failed to complete purchase: ' + error.message);
+    });
+});
+
+// Close modal
+document.getElementById('closeModal').addEventListener('click', function () {
+  document.getElementById('confirmationModal').classList.remove('active');
+  window.location.href = 'mytickets.html';
+});
+
+// Add event listener for all cancel buttons (assuming your ticket cards include them)
+document.querySelectorAll('.cancel-btn').forEach(button => {
+  button.addEventListener('click', async (e) => {
+    // Use currentTarget instead of target
+    const ticketId = e.currentTarget.getAttribute('data-ticket-id');
+    if (!ticketId) return;
+    if (!confirm('Are you sure you want to cancel this ticket?')) return;
+
+    try {
+      const res = await authFetch(`/tickets/${ticketId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Ticket cancellation failed');
+      }
+      alert('Ticket cancelled successfully!');
+      // Optionally refresh the ticket list
+      fetchTickets();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+});
+
+  </script>
+</body>
+</html>

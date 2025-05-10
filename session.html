@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EventSphere - Sessions</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #00c3ff;
+      --secondary-color: #009ac1;
+      --dark-bg: rgba(0, 0, 0, 0.8);
+      --light-bg: rgba(255, 255, 255, 0.1);
+      --text-color: #ffffff;
+      --text-muted: #cccccc;
+    }
+    body {
+      background: url('https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1950&q=80') no-repeat center center/cover;
+      background-attachment: fixed;
+      color: var(--text-color);
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+    header {
+      background: var(--dark-bg);
+      padding: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header .logo {
+      color: var(--primary-color);
+      font-size: 28px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+    }
+    header .logo i {
+      margin-right: 10px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+    .section-title {
+      text-align: center;
+      color: var(--primary-color);
+      margin-bottom: 20px;
+    }
+    .session-form {
+      background: var(--dark-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      margin-bottom: 30px;
+    }
+    .session-form h3 {
+      color: var(--primary-color);
+      margin-bottom: 15px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--text-color);
+    }
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      background: var(--light-bg);
+      color: var(--text-color);
+      font-size: 14px;
+    }
+    .form-actions {
+      text-align: right;
+    }
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 15px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+    .btn-primary:hover {
+      background-color: var(--secondary-color);
+    }
+    .table-container {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+    }
+    table th,
+    table td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--light-bg);
+    }
+    table th {
+      background: var(--dark-bg);
+      color: var(--primary-color);
+    }
+    table td {
+      color: var(--text-color);
+    }
+    .edit-btn,
+    .delete-btn {
+      background: none;
+      border: none;
+      color: var(--primary-color);
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    .edit-btn:hover,
+    .delete-btn:hover {
+      color: var(--secondary-color);
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--dark-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      z-index: 1000;
+    }
+    .modal.show {
+      display: block;
+    }
+    .update-form {
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .form-title {
+      color: var(--primary-color);
+      margin-bottom: 15px;
+    }
+    .close-modal {
+      background: none;
+      border: none;
+      color: var(--text-color);
+      font-size: 20px;
+      cursor: pointer;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+    }
+    .close-modal:hover {
+      color: var(--primary-color);
+    }
+    .cancel-btn {
+      background-color: #f44336;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 15px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+    .cancel-btn:hover {
+      background-color: #d32f2f;
+    }
+    .submit-btn {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 15px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+    .submit-btn:hover {
+      background-color: var(--secondary-color);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <i class="fas fa-calendar-alt"></i> EventSphere Sessions
+    </div>
+  </header>
+  
+  <div class="container">
+    <h2 class="section-title">Sessions</h2>
+    
+    <!-- Form to add a new session -->
+    <div class="session-form">
+      <h3>Add New Session</h3>
+      <form id="addSessionForm">
+        <div class="form-group">
+          <label for="sessionTitle">Title</label>
+          <input type="text" id="sessionTitle" required>
+        </div>
+        <div class="form-group">
+          <label for="sessionSpeaker">Speaker</label>
+          <input type="text" id="sessionSpeaker" required>
+        </div>
+        <div class="form-group">
+          <label for="sessionDate">Date</label>
+          <input type="date" id="sessionDate" required>
+        </div>
+        <div class="form-group">
+          <label for="sessionTime">Time</label>
+          <input type="time" id="sessionTime" required>
+        </div>
+        <div class="form-group">
+          <label for="sessionDescription">Description</label>
+          <textarea id="sessionDescription" required></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Add Session</button>
+        </div>
+      </form>
+    </div>
+    
+    <!-- Sessions Table -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Session ID</th>
+            <th>Title</th>
+            <th>Speaker</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Description</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="sessionsTableBody">
+          <!-- Sessions will be dynamically inserted here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Modal for editing a session -->
+  <div class="modal" id="editSessionModal" role="dialog">
+    <div class="update-form">
+      <button class="close-modal" id="closeEditModal" aria-label="Close edit modal">&times;</button>
+      <h2 class="form-title">Edit Session</h2>
+      <form id="editSessionForm">
+        <input type="hidden" id="editSessionId">
+        <div class="form-group">
+          <label for="editSessionTitle">Title</label>
+          <input type="text" id="editSessionTitle" required>
+        </div>
+        <div class="form-group">
+          <label for="editSessionSpeaker">Speaker</label>
+          <input type="text" id="editSessionSpeaker" required>
+        </div>
+        <div class="form-group">
+          <label for="editSessionDate">Date</label>
+          <input type="date" id="editSessionDate" required>
+        </div>
+        <div class="form-group">
+          <label for="editSessionTime">Time</label>
+          <input type="time" id="editSessionTime" required>
+        </div>
+        <div class="form-group">
+          <label for="editSessionDescription">Description</label>
+          <textarea id="editSessionDescription" required></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="cancel-btn" id="cancelEdit">Cancel</button>
+          <button type="submit" class="submit-btn">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <script>
+    // DOM Elements
+    const sessionsTableBody = document.getElementById('sessionsTableBody');
+    const addSessionForm = document.getElementById('addSessionForm');
+    const editSessionModal = document.getElementById('editSessionModal');
+    const closeEditModalBtn = document.getElementById('closeEditModal');
+    const cancelEditBtn = document.getElementById('cancelEdit');
+    const editSessionForm = document.getElementById('editSessionForm');
+    
+    let sessions = [];
+
+    // Fetch sessions from backend
+    async function fetchSessions() {
+      try {
+        const res = await fetch('/sessions');
+        if (!res.ok) throw new Error('Failed to fetch sessions');
+        sessions = await res.json();
+        renderSessions(sessions);
+      } catch (error) {
+        console.error('Error fetching sessions:', error);
+        sessionsTableBody.innerHTML = '<tr><td colspan="7">Error loading sessions.</td></tr>';
+      }
+    }
+
+    // Render sessions in table
+    function renderSessions(sessionList) {
+      if (sessionList.length === 0) {
+        sessionsTableBody.innerHTML = '<tr><td colspan="7">No sessions found.</td></tr>';
+        return;
+      }
+      sessionsTableBody.innerHTML = '';
+      sessionList.forEach(session => {
+        const tr = document.createElement('tr');
+        const date = new Date(session.session_date);
+        // Format date and time to proper strings (adjust as needed)
+        tr.innerHTML = `
+          <td>${session.id}</td>
+          <td>${session.title}</td>
+          <td>${session.speaker}</td>
+          <td>${date.toLocaleDateString()}</td>
+          <td>${session.session_time}</td>
+          <td>${session.description}</td>
+          <td>
+            <button class="edit-btn" data-id="${session.id}"><i class="fas fa-edit"></i> Edit</button>
+            <button class="delete-btn" data-id="${session.id}"><i class="fas fa-trash"></i> Delete</button>
+          </td>
+        `;
+        sessionsTableBody.appendChild(tr);
+      });
+      // Add event listeners for edit and delete
+      document.querySelectorAll('.edit-btn').forEach(button => {
+        button.addEventListener('click', () => {
+          const sessionId = button.getAttribute('data-id');
+          openEditModal(sessionId);
+        });
+      });
+      document.querySelectorAll('.delete-btn').forEach(button => {
+        button.addEventListener('click', async () => {
+          const sessionId = button.getAttribute('data-id');
+          if (confirm('Are you sure you want to delete this session?')) {
+            await deleteSession(sessionId);
+          }
+        });
+      });
+    }
+
+    // Create session (POST)
+    addSessionForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newSession = {
+        title: document.getElementById('sessionTitle').value.trim(),
+        speaker: document.getElementById('sessionSpeaker').value.trim(),
+        session_date: document.getElementById('sessionDate').value,
+        session_time: document.getElementById('sessionTime').value,
+        description: document.getElementById('sessionDescription').value.trim()
+      };
+      // Retrieve token from localStorage instead of using a placeholder
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('You are not logged in. Please log in first.');
+        window.location.href = 'login.html';
+        return;
+      }
+      try {
+        const res = await fetch('/sessions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(newSession)
+        });
+        if (!res.ok) throw new Error(await res.text() || 'Failed to add session');
+        await fetchSessions();
+        addSessionForm.reset();
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    });
+
+    // Open edit modal and fill values
+    function openEditModal(sessionId) {
+      const session = sessions.find(s => s.id == sessionId);
+      if (!session) return;
+      document.getElementById('editSessionId').value = session.id;
+      document.getElementById('editSessionTitle').value = session.title;
+      document.getElementById('editSessionSpeaker').value = session.speaker;
+      document.getElementById('editSessionDate').value = session.session_date;
+      document.getElementById('editSessionTime').value = session.session_time;
+      document.getElementById('editSessionDescription').value = session.description;
+      editSessionModal.classList.add('show');
+    }
+
+    // Close edit modal
+    function closeEditModal() {
+      editSessionModal.classList.remove('show');
+    }
+    closeEditModalBtn.addEventListener('click', closeEditModal);
+    cancelEditBtn.addEventListener('click', closeEditModal);
+
+    // Update session (PUT)
+    editSessionForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const sessionId = document.getElementById('editSessionId').value;
+      const updatedSession = {
+        title: document.getElementById('editSessionTitle').value.trim(),
+        speaker: document.getElementById('editSessionSpeaker').value.trim(),
+        session_date: document.getElementById('editSessionDate').value,
+        session_time: document.getElementById('editSessionTime').value,
+        description: document.getElementById('editSessionDescription').value.trim()
+      };
+      try {
+        const res = await fetch(`/sessions/${sessionId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedSession)
+        });
+        if (!res.ok) throw new Error(await res.text() || 'Update failed');
+        closeEditModal();
+        await fetchSessions();
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    });
+
+    // Delete session (DELETE)
+    async function deleteSession(sessionId) {
+      try {
+        const res = await fetch(`/sessions/${sessionId}`, {
+          method: 'DELETE'
+        });
+        if (!res.ok) throw new Error(await res.text() || 'Delete failed');
+        await fetchSessions();
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await fetchSessions();
+    });
+  </script>
+</body>
+</html>

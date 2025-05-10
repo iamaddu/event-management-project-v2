@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Edit Category</title>
+  <!-- Add your CSS and any meta tags -->
+</head>
+<body>
+  <h1>Edit Category</h1>
+  <form id="categoryEditForm">
+    <!-- Hidden field to hold the category ID -->
+    <input type="hidden" id="categoryId" value="1">
+    
+    <div class="form-group">
+      <label for="name">Category Name</label>
+      <input type="text" id="name" value="Existing Category Name">
+    </div>
+    
+    <div class="form-group">
+      <label for="slug">Slug</label>
+      <input type="text" id="slug" value="existing-category-slug">
+    </div>
+    
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea id="description">Existing category description</textarea>
+    </div>
+    
+    <div class="form-group">
+      <label for="icon">Icon</label>
+      <input type="text" id="icon" value="existing-icon">
+    </div>
+    
+    <div class="form-group">
+      <label for="color">Color</label>
+      <input type="text" id="color" value="existing-color">
+    </div>
+    
+    <div class="form-group">
+      <label for="status">Status</label>
+      <input type="text" id="status" value="existing-status">
+    </div>
+    
+    <div class="form-group">
+      <label for="metaTitle">Meta Title</label>
+      <input type="text" id="metaTitle" value="existing meta title">
+    </div>
+    
+    <div class="form-group">
+      <label for="metaDescription">Meta Description</label>
+      <textarea id="metaDescription">existing meta description</textarea>
+    </div>
+    
+    <button type="submit" class="btn btn-primary">Update Category</button>
+  </form>
+
+  <script>
+    // Define authFetch if not already defined
+    function authFetch(url, options = {}) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Session expired or not logged in. Please log in.');
+        window.location.href = 'login.html';
+        return Promise.reject(new Error('No token found'));
+      }
+      options.headers = options.headers || {};
+      options.headers['Authorization'] = `Bearer ${token}`;
+      return fetch(url, options);
+    }
+    
+    // Call this function on page load to fetch the category details and pre-fill the form
+    function fetchCategoryDetails(categoryId) {
+      authFetch(`/category/${categoryId}`)
+        .then(response => {
+          if (!response.ok) {
+            return response.json().then(err => { 
+              throw new Error(err.error || 'Failed to fetch category details'); 
+            });
+          }
+          return response.json();
+        })
+        .then(category => {
+          console.log('Category details:', category);
+          // Pre-fill your edit form fields with the category object
+          document.getElementById('name').value = category.name;
+          document.getElementById('slug').value = category.slug;
+          document.getElementById('description').value = category.description;
+          document.getElementById('icon').value = category.icon;
+          document.getElementById('color').value = category.color;
+          document.getElementById('status').value = category.status;
+          document.getElementById('metaTitle').value = category.metaTitle;
+          document.getElementById('metaDescription').value = category.metaDescription;
+        })
+        .catch(error => {
+          console.error('Error fetching category details:', error.message);
+          alert('Error fetching category details: ' + error.message);
+        });
+    }
+
+    // When DOM is loaded, fetch details for the category being edited (using the hidden input value)
+    document.addEventListener('DOMContentLoaded', function() {
+      const categoryId = document.getElementById('categoryId').value;
+      fetchCategoryDetails(categoryId);
+    });
+
+    document.getElementById('categoryEditForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const categoryId = document.getElementById('categoryId').value;
+      const name = document.getElementById('name').value.trim();
+      const slug = document.getElementById('slug').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const icon = document.getElementById('icon').value.trim();
+      const color = document.getElementById('color').value.trim();
+      const status = document.getElementById('status').value.trim();
+      const metaTitle = document.getElementById('metaTitle').value.trim();
+      const metaDescription = document.getElementById('metaDescription').value.trim();
+
+      const updatedCategory = { name, slug, description, icon, color, status, metaTitle, metaDescription };
+
+      fetch(`/categories/${categoryId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedCategory)
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to update category');
+        }
+        return response.json();
+      })
+      .then(data => {
+        alert('Category updated successfully');
+        // Optionally, redirect or update the UI further.
+      })
+      .catch(error => {
+        alert(error.message);
+      });
+    });
+
+    // Delegated update listener with detailed logging
+    document.addEventListener('click', async (e) => {
+      const updateBtn = e.target.closest('.update-btn');
+      if (!updateBtn) return;
+      
+      const eventId = updateBtn.getAttribute('data-event-id');
+      if (!eventId) {
+        alert('Event ID not found.');
+        return;
+      }
+      console.log('Requested update for event ID:', eventId);
+      try {
+        const response = await fetch(`/events/${eventId}?_=${Date.now()}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
+          },
+          cache: 'no-store'
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Fetch error:', response.status, response.statusText, errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        const eventData = await response.json();
+        console.log('Fetched event data:', eventData);
+        openUpdateModal(eventData);
+      } catch (error) {
+        console.error('Error in update listener:', error);
+        alert('Failed to load event details for update: ' + error.message);
+      }
+    });
+  </script>
+</body>
+</html>

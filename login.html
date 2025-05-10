@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Event Login | Secure Access</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="Secure login for event management system">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary-color: #4361ee;
+      --primary-dark: #3a56d4;
+      --secondary-color: #f72585;
+      --light-color: #f8f9fa;
+      --dark-color: #212529;
+      --danger-color: #dc3545;
+      --success-color: #28a745;
+      --warning-color: #ffc107;
+      --info-color: #17a2b8;
+      --border-radius: 12px;
+      --box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      --transition: all 0.3s ease;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--light-color);
+      position: relative;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('https://images.unsplash.com/photo-1531058020387-3be344556be6?auto=format&fit=crop&w=1950&q=80') no-repeat center center/cover;
+      opacity: 0.3;
+      z-index: -1;
+    }
+
+    .particles {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+    }
+
+    .login-container {
+      width: 420px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: var(--border-radius);
+      padding: 40px;
+      box-shadow: var(--box-shadow);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: center;
+      transform: translateY(0);
+      transition: var(--transition);
+      z-index: 1;
+    }
+
+    .login-container:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+    }
+
+    .logo {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: var(--primary-color);
+      border: 2px solid var(--primary-color);
+    }
+
+    .login-container h2 {
+      margin-bottom: 25px;
+      font-size: 28px;
+      font-weight: 600;
+      color: white;
+      position: relative;
+    }
+
+    .login-container h2::after {
+      content: '';
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 50px;
+      height: 3px;
+      background: var(--primary-color);
+      border-radius: 3px;
+    }
+
+    .input-group {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .input-group i {
+      position: absolute;
+      top: 50%;
+      left: 15px;
+      transform: translateY(-50%);
+      color: rgba(255, 255, 255, 0.7);
+      transition: var(--transition);
+    }
+
+    .login-container input {
+      width: 100%;
+      padding: 15px 15px 15px 45px;
+      margin: 5px 0;
+      border: none;
+      border-radius: var(--border-radius);
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 16px;
+      transition: var(--transition);
+      border: 1px solid transparent;
+    }
+
+    .login-container input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+    }
+
+    .login-container input::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .login-container input:focus + i {
+      color: var(--primary-color);
+    }
+
+    .password-toggle {
+      position: absolute;
+      top: 50%;
+      right: 15px;
+      transform: translateY(-50%);
+      color: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .password-toggle:hover {
+      color: var(--primary-color);
+    }
+
+    .login-container button {
+      width: 100%;
+      padding: 15px;
+      margin-top: 20px;
+      border: none;
+      border-radius: var(--border-radius);
+      background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+      color: white;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .login-container button:hover {
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary-color));
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(67, 97, 238, 0.4);
+    }
+
+    .login-container button:active {
+      transform: translateY(0);
+    }
+
+    .login-container button i {
+      font-size: 18px;
+    }
+
+    .error-message {
+      color: var(--danger-color);
+      font-size: 14px;
+      margin-top: 5px;
+      text-align: left;
+      padding-left: 10px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      opacity: 0;
+      height: 0;
+      transition: var(--transition);
+    }
+
+    .error-message.show {
+      opacity: 1;
+      height: auto;
+      margin-top: 10px;
+    }
+
+    .additional-options {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+
+    .remember-me {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .remember-me input {
+      width: auto;
+    }
+
+    .forgot-password a {
+      color: rgba(255, 255, 255, 0.7);
+      text-decoration: none;
+      transition: var(--transition);
+    }
+
+    .forgot-password a:hover {
+      color: var(--primary-color);
+      text-decoration: underline;
+    }
+
+    .sign-in-link {
+      margin-top: 25px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 14px;
+    }
+
+    .sign-in-link a {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 600;
+      transition: var(--transition);
+    }
+
+    .sign-in-link a:hover {
+      text-decoration: underline;
+    }
+
+    .social-login {
+      margin-top: 30px;
+    }
+
+    .social-login p {
+      position: relative;
+      margin-bottom: 20px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .social-login p::before,
+    .social-login p::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 30%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .social-login p::before {
+      left: 0;
+    }
+
+    .social-login p::after {
+      right: 0;
+    }
+
+    .social-icons {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+    }
+
+    .social-icon {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 18px;
+      transition: var(--transition);
+      cursor: pointer;
+    }
+
+    .social-icon:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .social-icon.google:hover {
+      background: #db4437;
+    }
+
+    .social-icon.facebook:hover {
+      background: #4267b2;
+    }
+
+    .social-icon.twitter:hover {
+      background: #1da1f2;
+    }
+
+    .social-icon.linkedin:hover {
+      background: #0077b5;
+    }
+
+    .loading {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .login-container button.loading-btn .loading {
+      display: block;
+    }
+
+    .login-container button.loading-btn span {
+      display: none;
+    }
+
+    @media screen and (max-width: 480px) {
+      .login-container {
+        width: 90%;
+        padding: 30px 20px;
+      }
+
+      .additional-options {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .forgot-password {
+        text-align: left;
+      }
+    }
+
+    /* Animation classes */
+    .shake {
+      animation: shake 0.5s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+      20%, 40%, 60%, 80% { transform: translateX(5px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="particles" id="particles-js"></div>
+
+  <div class="login-container">
+    <div class="logo">
+      <i class="fas fa-calendar-alt"></i>
+    </div>
+    <h2>Event Management</h2>
+    <form id="loginForm">
+      <div class="input-group">
+        <i class="fas fa-user"></i>
+        <input type="text" id="username" placeholder="Username or Email" required />
+      </div>
+      <div class="input-group">
+        <i class="fas fa-lock"></i>
+        <input type="password" id="password" placeholder="Password" required />
+        <i class="fas fa-eye password-toggle" id="togglePassword"></i>
+      </div>
+      <div class="error-message" id="error-message">
+        <i class="fas fa-exclamation-circle"></i>
+        <span></span>
+      </div>
+      <div class="additional-options">
+        <div class="remember-me">
+          <input type="checkbox" id="remember">
+          <label for="remember">Remember me</label>
+        </div>
+        <div class="forgot-password">
+          <a href="forgot-password.html">Forgot password?</a>
+        </div>
+      </div>
+      <button type="submit" id="loginBtn">
+        <div class="loading"></div>
+        <span>Login</span>
+      </button>
+    </form>
+    <div class="social-login">
+      <p>Or login with</p>
+      <div class="social-icons">
+        <div class="social-icon google">
+          <i class="fab fa-google"></i>
+        </div>
+        <div class="social-icon facebook">
+          <i class="fab fa-facebook-f"></i>
+        </div>
+        <div class="social-icon twitter">
+          <i class="fab fa-twitter"></i>
+        </div>
+        <div class="social-icon linkedin">
+          <i class="fab fa-linkedin-in"></i>
+        </div>
+      </div>
+    </div>
+    <p class="sign-in-link">Don't have an account? <a href="signup.html">Sign Up</a></p>
+ 
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+  <script>
+    // Initialize particles.js
+    document.addEventListener('DOMContentLoaded', function() {
+      if (document.getElementById('particles-js')) {
+        particlesJS('particles-js', {
+          particles: {
+            number: { value: 80, density: { enable: true, value_area: 800 } },
+            color: { value: "#ffffff" },
+            shape: { type: "circle" },
+            opacity: { value: 0.5, random: true },
+            size: { value: 3, random: true },
+            line_linked: { enable: true, distance: 150, color: "#ffffff", opacity: 0.3, width: 1 },
+            move: { enable: true, speed: 2, direction: "none", random: true, straight: false, out_mode: "out" }
+          },
+          interactivity: {
+            detect_on: "canvas",
+            events: {
+              onhover: { enable: true, mode: "repulse" },
+              onclick: { enable: true, mode: "push" }
+            }
+          }
+        });
+      }
+    });
+
+    const form = document.getElementById('loginForm');
+    const errorMessage = document.getElementById('error-message');
+    const errorText = errorMessage.querySelector('span');
+    const loginBtn = document.getElementById('loginBtn');
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+
+    // Toggle password visibility
+    togglePassword.addEventListener('click', function() {
+      const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+      passwordInput.setAttribute('type', type);
+      this.classList.toggle('fa-eye-slash');
+      this.classList.toggle('fa-eye');
+    });
+
+    // In login.html, update the form submission handler
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      try {
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ username, password }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Login failed');
+        }
+
+        localStorage.setItem('token', data.token);
+        alert('Login successful! Redirecting...');
+        window.location.href = data.redirect;
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+
+    // Simulate authentication
+    async function authenticateUser(username, password, remember) {
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          // Demo credentials - replace with actual authentication logic
+          const validCredentials = [
+            { user: 'admin', pass: 'Admin123!' },
+            { user: 'user@example.com', pass: 'Password123!' }
+          ];
+          
+          const isValid = validCredentials.some(cred => 
+            (cred.user === username || cred.user.toLowerCase() === username.toLowerCase()) && 
+            cred.pass === password
+          );
+          
+          if (isValid) {
+            // In a real app, you would store the token in localStorage/sessionStorage
+            if (remember) {
+              localStorage.setItem('rememberMe', 'true');
+            } else {
+              sessionStorage.setItem('sessionAuth', 'true');
+            }
+            resolve();
+          } else {
+            reject(new Error('Invalid username or password.'));
+          }
+        }, 1500); // Simulate network delay
+      });
+    }
+
+    function showError(message) {
+      errorText.textContent = message;
+      errorMessage.classList.add('show');
+      form.classList.add('shake');
+      setTimeout(() => form.classList.remove('shake'), 500);
+    }
+
+    // Check for remembered user
+    window.addEventListener('load', function() {
+      if (localStorage.getItem('rememberMe')) {
+        document.getElementById('remember').checked = true;
+        // In a real app, you might auto-fill the username here
+      }
+    });
+
+    // Social login handlers
+    document.querySelectorAll('.social-icon').forEach(icon => {
+      icon.addEventListener('click', function() {
+        const platform = this.classList.contains('google') ? 'Google' :
+                         this.classList.contains('facebook') ? 'Facebook' :
+                         this.classList.contains('twitter') ? 'Twitter' : 'LinkedIn';
+        
+        // In a real app, this would trigger OAuth flow
+        alert(`Redirecting to ${platform} login...`);
+      });
+    });
+    
+  </script>
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const loginData = {
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+      };
+
+      try {
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(loginData),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Login failed');
+        }
+
+        // Save the token in localStorage
+        localStorage.setItem('token', result.token);
+
+        // Redirect to home page
+        window.location.href = result.redirect;
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  </script>
+</body>
+</html>
+``` 

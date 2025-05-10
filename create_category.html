@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EventHub - Create Category</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .content {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+    }
+
+    .logo i {
+      color: #fff;
+      margin-right: 10px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 15px;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      gap: 20px;
+    }
+
+    .sidebar {
+      background-color: rgba(0, 0, 0, 0.2);
+      border-radius: 15px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      height: fit-content;
+    }
+
+    .sidebar-title {
+      font-size: 18px;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar-menu {
+      list-style: none;
+    }
+
+    .sidebar-menu li {
+      margin-bottom: 10px;
+    }
+
+    .sidebar-menu a {
+      color: white;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      transition: all 0.3s;
+    }
+
+    .sidebar-menu a:hover, .sidebar-menu a.active {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar-menu i {
+      width: 20px;
+      text-align: center;
+    }
+
+    .main-content {
+      background-color: rgba(255, 255, 255, 0.08);
+      border-radius: 15px;
+      padding: 25px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .content-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+    }
+
+    .content-title {
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .create-category-card {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      padding: 30px;
+      margin: 0 auto;
+      max-width: 800px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      transition: all 0.3s ease;
+    }
+
+    .create-category-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .form-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .form-header h2 {
+      font-size: 28px;
+      margin-bottom: 10px;
+      background: linear-gradient(to right, #fff, #fdbb2d);
+     
+      -webkit-text-fill-color: transparent;
+    }
+
+    .form-header p {
+      opacity: 0.8;
+      font-size: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 12px 15px;
+      background-color: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      color: white;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: white;
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .feature-toggle {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding: 15px;
+      background-color: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 30px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.2);
+      transition: .4s;
+      border-radius: 34px;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 22px;
+      width: 22px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .toggle-slider {
+      background-color: #4ade80;
+    }
+
+    input:checked + .toggle-slider:before {
+      transform: translateX(30px);
+    }
+
+    .color-picker {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .color-option {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .color-option:hover {
+      transform: scale(1.1);
+    }
+
+    .color-option.selected {
+      border-color: white;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+    }
+
+    .icon-preview {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .icon-preview-box {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      font-size: 18px;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 15px;
+      margin-top: 30px;
+    }
+
+    /* Responsive Styles */
+    @media (max-width: 992px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+    }
+
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+      }
+
+      .header-actions {
+        width: 100%;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 576px) {
+      .create-category-card {
+        padding: 20px;
+      }
+
+      .form-actions {
+        flex-direction: column;
+      }
+
+      .btn {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+    <header>
+      <div class="logo">
+        <i class="fas fa-calendar-alt"></i>
+        EventHub
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary" onclick="window.location.href='eventcategory.html'">
+          <i class="fas fa-arrow-left"></i> Back to Categories
+        </button>
+      </div>
+    </header>
+
+    <div class="dashboard">
+      <aside class="sidebar">
+        <h3 class="sidebar-title">Menu</h3>
+        <ul class="sidebar-menu">
+          <li><a href="home.html"><i class="fas fa-home"></i> Home</a></li>
+          <li><a href="eventcategory.html"><i class="fas fa-list"></i> Categories</a></li>
+          <li><a href="event.html"><i class="fas fa-calendar"></i> Events</a></li>
+          <li><a href="attendes.html"><i class="fas fa-users"></i> Attendees</a></li>
+          <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> Analytics</a></li>
+          <li><a href="setting.html"><i class="fas fa-cog"></i> Settings</a></li>
+        </ul>
+      </aside>
+
+      <main class="main-content">
+        <div class="content-header">
+          <h2 class="content-title">Create New Category</h2>
+        </div>
+
+        <div class="create-category-card">
+          <div class="form-header">
+            <h2>New Event Category</h2>
+            <p>Fill in the details below to create a new event category</p>
+          </div>
+
+          <form id="createCategoryForm">
+            <div class="feature-toggle">
+              <div>
+                <h4>Category Status</h4>
+                <p>Toggle to activate or deactivate this category</p>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="categoryStatus" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="categoryName">Category Name *</label>
+                <input type="text" id="categoryName" placeholder="e.g. Technology Conference" required>
+              </div>
+
+              <div class="form-group">
+                <label for="categorySlug">URL Slug *</label>
+                <input type="text" id="categorySlug" placeholder="e.g. tech-conference" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="categoryDescription">Description *</label>
+              <textarea id="categoryDescription" placeholder="Describe this category in detail..." required></textarea>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="categoryIcon">Icon *</label>
+                <select id="categoryIcon" required>
+                  <option value="">Select an icon</option>
+                  <option value="fa-microchip">Technology</option>
+                  <option value="fa-football-ball">Sports</option>
+                  <option value="fa-music">Music</option>
+                  <option value="fa-graduation-cap">Education</option>
+                  <option value="fa-briefcase">Business</option>
+                  <option value="fa-utensils">Food</option>
+                  <option value="fa-heart">Health</option>
+                  <option value="fa-paint-brush">Art</option>
+                </select>
+                <div class="icon-preview">
+                  <div class="icon-preview-box" id="iconPreview">
+                    <i class="fas fa-question"></i>
+                  </div>
+                  <span>Icon preview</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Category Color *</label>
+                <div class="color-picker">
+                  <div class="color-option selected" style="background-color: #3b82f6;" data-color="#3b82f6"></div>
+                  <div class="color-option" style="background-color: #10b981;" data-color="#10b981"></div>
+                  <div class="color-option" style="background-color: #f59e0b;" data-color="#f59e0b"></div>
+                  <div class="color-option" style="background-color: #ef4444;" data-color="#ef4444"></div>
+                  <div class="color-option" style="background-color: #8b5cf6;" data-color="#8b5cf6"></div>
+                </div>
+                <input type="hidden" id="categoryColor" value="#3b82f6">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="categoryMetaTitle">Meta Title (for SEO)</label>
+              <input type="text" id="categoryMetaTitle" placeholder="Optimized title for search engines">
+            </div>
+
+            <div class="form-group">
+              <label for="categoryMetaDescription">Meta Description (for SEO)</label>
+              <textarea id="categoryMetaDescription" placeholder="Brief description for search engine results" rows="3"></textarea>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="window.location.href='categories.html'">
+                <i class="fas fa-times"></i> Cancel
+              </button>
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> Create Category
+              </button>
+            </div>
+          </form>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Icon preview functionality
+      const iconSelect = document.getElementById('categoryIcon');
+      const iconPreview = document.getElementById('iconPreview');
+      
+      iconSelect.addEventListener('change', () => {
+        if (iconSelect.value) {
+          iconPreview.innerHTML = `<i class="fas ${iconSelect.value}"></i>`;
+        } else {
+          iconPreview.innerHTML = '<i class="fas fa-question"></i>';
+        }
+      });
+
+      // Color picker functionality
+      const colorOptions = document.querySelectorAll('.color-option');
+      const colorInput = document.getElementById('categoryColor');
+      
+      colorOptions.forEach(option => {
+        option.addEventListener('click', () => {
+          colorOptions.forEach(opt => opt.classList.remove('selected'));
+          option.classList.add('selected');
+          colorInput.value = option.dataset.color;
+        });
+      });
+
+      // Form submission
+      document.getElementById('createCategoryForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Get form values
+        const name = document.getElementById('categoryName').value.trim();
+        const slug = document.getElementById('categorySlug').value.trim();
+        const description = document.getElementById('categoryDescription').value.trim();
+        const icon = document.getElementById('categoryIcon').value;
+        const color = document.getElementById('categoryColor').value;
+        const status = document.getElementById('categoryStatus').checked ? 'active' : 'inactive';
+        const metaTitle = document.getElementById('categoryMetaTitle').value.trim();
+        const metaDescription = document.getElementById('categoryMetaDescription').value.trim();
+
+        if (!name || !slug || !description || !icon) {
+          alert('Please fill in all required fields.');
+          return;
+        }
+
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) {
+            window.location.href = 'login.html';
+            return;
+          }
+
+          const response = await fetch('http://localhost:3000/create-category', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              name,
+              slug,
+              description,
+              icon,
+              color,
+              status,
+              metaTitle,
+              metaDescription
+            })
+          });
+
+          const data = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to create category');
+          }
+
+          alert('Category created successfully!');
+          window.location.href = 'categories.html';
+        } catch (error) {
+          console.error('Error:', error.message);
+          alert(error.message);
+        }
+      });
+
+      // Auto-generate slug from name
+      const nameInput = document.getElementById('categoryName');
+      const slugInput = document.getElementById('categorySlug');
+      
+      nameInput.addEventListener('blur', () => {
+        if (!slugInput.value) {
+          const slug = nameInput.value
+            .toLowerCase()
+            .replace(/[^\w\s]/g, '')
+            .replace(/\s+/g, '-');
+          slugInput.value = slug;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

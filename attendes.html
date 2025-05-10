@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EventHub - Attendees Management</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .content {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+    }
+
+    .logo i {
+      color: #fff;
+      margin-right: 10px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 15px;
+    }
+
+    .search-container {
+      position: relative;
+      width: 300px;
+    }
+
+    .search-container input {
+      width: 100%;
+      padding: 10px 15px 10px 40px;
+      border: none;
+      border-radius: 30px;
+      background-color: rgba(255, 255, 255, 0.2);
+      color: white;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+
+    .search-container input:focus {
+      outline: none;
+      background-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+    }
+
+    .search-container i {
+      position: absolute;
+      left: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 30px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background-color: #fff;
+      color: #1a2a6c;
+    }
+
+    .btn-primary:hover {
+      background-color: rgba(255, 255, 255, 0.9);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-secondary {
+      background-color: transparent;
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+
+    .btn-secondary:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-color: white;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      gap: 20px;
+    }
+
+    .sidebar {
+      background-color: rgba(0, 0, 0, 0.2);
+      border-radius: 15px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      height: fit-content;
+    }
+
+    .sidebar-title {
+      font-size: 18px;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar-menu {
+      list-style: none;
+    }
+
+    .sidebar-menu li {
+      margin-bottom: 10px;
+    }
+
+    .sidebar-menu a {
+      color: white;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      transition: all 0.3s;
+    }
+
+    .sidebar-menu a:hover, .sidebar-menu a.active {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar-menu i {
+      width: 20px;
+      text-align: center;
+    }
+
+    .main-content {
+      background-color: rgba(255, 255, 255, 0.08);
+      border-radius: 15px;
+      padding: 25px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .content-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+    }
+
+    .content-title {
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .stats-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 25px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.3s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-5px);
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .stat-card-title {
+      font-size: 14px;
+      opacity: 0.8;
+      margin-bottom: 10px;
+    }
+
+    .stat-card-value {
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .stat-card-change {
+      font-size: 12px;
+      margin-top: 5px;
+      display: flex;
+      align-items: center;
+    }
+
+    .stat-card-change.positive {
+      color: #4ade80;
+    }
+
+    .stat-card-change.negative {
+      color: #f87171;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      border-radius: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 15px;
+      color: #fff;
+    }
+
+    th, td {
+      padding: 14px 16px;
+      text-align: left;
+    }
+
+    th {
+      background-color: rgba(0, 0, 0, 0.3);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+
+    tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.2s;
+    }
+
+    tr:last-child {
+      border-bottom: none;
+    }
+
+    tr:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-registered {
+      background-color: rgba(96, 165, 250, 0.2);
+      color: #60a5fa;
+    }
+
+    .badge-checked-in {
+      background-color: rgba(74, 222, 128, 0.2);
+      color: #4ade80;
+    }
+
+    .badge-cancelled {
+      background-color: rgba(248, 113, 113, 0.2);
+      color: #f87171;
+    }
+
+    .badge-vip {
+      background-color: rgba(216, 180, 254, 0.2);
+      color: #d8b4fe;
+    }
+
+    .badge-general {
+      background-color: rgba(253, 230, 138, 0.2);
+      color: #fde68a;
+    }
+
+    .badge-student {
+      background-color: rgba(167, 243, 208, 0.2);
+      color: #a7f3d0;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .action-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(255, 255, 255, 0.1);
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+      transform: scale(1.1);
+    }
+
+    .action-btn.edit {
+      color: #60a5fa;
+    }
+
+    .action-btn.delete {
+      color: #f87171;
+    }
+
+    .action-btn.view {
+      color: #4ade80;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .pagination-info {
+      font-size: 14px;
+      opacity: 0.8;
+    }
+
+    .pagination-controls {
+      display: flex;
+      gap: 8px;
+    }
+
+    .page-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(255, 255, 255, 0.1);
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .page-btn.active {
+      background-color: white;
+      color: #1a2a6c;
+      font-weight: 600;
+    }
+
+    .page-btn:hover:not(.active) {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      overflow-y: auto;
+    }
+
+    .modal-content {
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+      margin: 50px auto;
+      padding: 30px;
+      border-radius: 15px;
+      width: 90%;
+      max-width: 600px;
+      position: relative;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .close-modal {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 24px;
+      color: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      transition: color 0.3s;
+    }
+
+    .close-modal:hover {
+      color: white;
+    }
+
+    .modal-title {
+      font-size: 24px;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .form-group input, 
+    .form-group textarea, 
+    .form-group select {
+      width: 100%;
+      padding: 12px 15px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      background-color: rgba(0, 0, 0, 0.2);
+      color: white;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .form-group input:focus, 
+    .form-group textarea:focus, 
+    .form-group select:focus {
+      outline: none;
+      border-color: white;
+      background-color: rgba(0, 0, 0, 0.3);
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 15px;
+      margin-top: 30px;
+    }
+
+    /* Responsive Styles */
+    @media (max-width: 992px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+    }
+
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+      }
+
+      .header-actions {
+        width: 100%;
+        flex-direction: column;
+      }
+
+      .search-container {
+        width: 100%;
+      }
+
+      .stats-cards {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 576px) {
+      .stats-cards {
+        grid-template-columns: 1fr;
+      }
+
+      .content-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+      }
+
+      .pagination {
+        flex-direction: column;
+        gap: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+    <header>
+      <div class="logo">
+        <i class="fas fa-calendar-alt"></i>
+        EventHub
+      </div>
+      <div class="header-actions">
+        <div class="search-container">
+          <i class="fas fa-search"></i>
+          <input type="text" id="searchInput" placeholder="Search attendees...">
+        </div>
+        <button class="btn btn-primary" id="addAttendeeBtn">
+          <i class="fas fa-plus"></i> Add Attendee
+        </button>
+      </div>
+    </header>
+
+    <div class="dashboard">
+      <aside class="sidebar">
+        <h3 class="sidebar-title">Menu</h3>
+        <ul class="sidebar-menu">
+          <li><a href="home.html"><i class="fas fa-home"></i> Home</a></li>
+          <li><a href="categories.html"><i class="fas fa-list"></i> Categories</a></li>
+          <li><a href="event.html"><i class="fas fa-calendar"></i> Events</a></li>
+          <li><a href="#" class="active"><i class="fas fa-users"></i> Attendees</a></li>
+          <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> Analytics</a></li>
+          <li><a href="setting.html"><i class="fas fa-cog"></i> Settings</a></li>
+        </ul>
+      </aside>
+
+      <main class="main-content">
+        <div class="content-header">
+          <h2 class="content-title">Event Attendees</h2>
+          <div class="actions">
+            <button class="btn btn-secondary">
+              <i class="fas fa-download"></i> Export
+            </button>
+            <button class="btn btn-secondary">
+              <i class="fas fa-filter"></i> Filter
+            </button>
+          </div>
+        </div>
+
+        <div class="stats-cards">
+          <div class="stat-card">
+            <div class="stat-card-title">Total Attendees</div>
+            <div class="stat-card-value">1,247</div>
+            <div class="stat-card-change positive">
+              <i class="fas fa-arrow-up"></i> 124 new today
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-title">Checked In</div>
+            <div class="stat-card-value">842</div>
+            <div class="stat-card-change positive">
+              <i class="fas fa-arrow-up"></i> 68% checked in
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-title">VIP Attendees</div>
+            <div class="stat-card-value">156</div>
+            <div class="stat-card-change positive">
+              <i class="fas fa-arrow-up"></i> 12.5% of total
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-title">Most Popular Event</div>
+            <div class="stat-card-value">Tech Summit</div>
+            <div class="stat-card-change">
+              <i class="fas fa-star"></i> 342 attendees
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Event</th>
+                <th>Ticket Type</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Attendees will be loaded here -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination">
+          <div class="pagination-info">
+            Showing 1 to 10 of 1,247 entries
+          </div>
+          <div class="pagination-controls">
+            <button class="page-btn" disabled>
+              <i class="fas fa-chevron-left"></i>
+            </button>
+            <button class="page-btn active">1</button>
+            <button class="page-btn">2</button>
+            <button class="page-btn">3</button>
+            <button class="page-btn">
+              <i class="fas fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Add/Edit Attendee Modal -->
+  <div class="modal" id="attendeeModal">
+    <div class="modal-content">
+      <span class="close-modal" id="closeModal">&times;</span>
+      <h2 class="modal-title" id="modalTitle">Add New Attendee</h2>
+      
+      <form id="attendeeForm">
+        <div class="form-group">
+          <label for="firstName">First Name</label>
+          <input type="text" id="firstName" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="lastName">Last Name</label>
+          <input type="text" id="lastName" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="phone">Phone</label>
+          <input type="tel" id="phone">
+        </div>
+        
+        <div class="form-group">
+          <label for="event">Event</label>
+          <select id="event" required>
+            <option value="">Select an event</option>
+            <option value="1">Tech Summit</option>
+            <option value="2">Music Festival</option>
+            <option value="3">Business Conference</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="ticketType">Ticket Type</label>
+          <select id="ticketType" required>
+            <option value="VIP">VIP</option>
+            <option value="General" selected>General</option>
+            <option value="Student">Student</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="status">Status</label>
+          <select id="status" required>
+            <option value="Registered" selected>Registered</option>
+            <option value="Checked In">Checked In</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancelAttendee">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary">
+            Save Attendee
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+  const tableBody = document.querySelector('tbody');
+  const addAttendeeBtn = document.getElementById('addAttendeeBtn');
+  const attendeeModal = document.getElementById('attendeeModal');
+  const closeModal = document.getElementById('closeModal');
+  const cancelAttendee = document.getElementById('cancelAttendee');
+  const attendeeForm = document.getElementById('attendeeForm');
+  const modalTitle = document.getElementById('modalTitle');
+  let currentAttendeeId = null;
+
+  // Open modal for adding new attendee
+  addAttendeeBtn.addEventListener('click', () => {
+    currentAttendeeId = null;
+    modalTitle.textContent = 'Add New Attendee';
+    attendeeForm.reset();
+    attendeeModal.style.display = 'block';
+  });
+
+  // Close modal
+  closeModal.addEventListener('click', () => {
+    attendeeModal.style.display = 'none';
+  });
+
+  cancelAttendee.addEventListener('click', () => {
+    attendeeModal.style.display = 'none';
+  });
+
+  // Fetch attendees
+  function fetchAttendees() {
+    fetch('/attendees')
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch attendees');
+        }
+        return response.json();
+      })
+      .then((attendees) => {
+        tableBody.innerHTML = '';
+        attendees.forEach((attendee) => {
+          // Use attendee.attendee_id if available, otherwise use attendee.id
+          const attendeeId = attendee.attendee_id || attendee.id;
+          const statusClass = attendee.status === 'Checked In' ? 'checked-in' : 
+                              attendee.status === 'Cancelled' ? 'cancelled' : 'registered';
+          const ticketClass = attendee.ticket_type === 'VIP' ? 'vip' : 
+                              attendee.ticket_type === 'Student' ? 'student' : 'general';
+
+          const row = `
+            <tr>
+              <td>${attendeeId}</td>
+              <td>${attendee.first_name} ${attendee.last_name}</td>
+              <td>${attendee.email}</td>
+              <td>${attendee.phone || 'N/A'}</td>
+              <td>${attendee.event_name || attendee.event_id}</td>
+              <td><span class="badge badge-${ticketClass}">${attendee.ticket_type}</span></td>
+              <td><span class="badge badge-${statusClass}">${attendee.status}</span></td>
+              <td class="actions">
+                <button class="action-btn edit" data-id="${attendeeId}">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="action-btn delete" data-id="${attendeeId}">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+          tableBody.innerHTML += row;
+        });
+      })
+      .catch((error) => {
+        console.error('Error fetching attendees:', error.message);
+        tableBody.innerHTML = '<tr><td colspan="8">Failed to load attendees. Please try again later.</td></tr>';
+      });
+  }
+
+  // Load attendees on page load
+  fetchAttendees();
+
+  // Handle form submission
+  attendeeForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const attendeeData = {
+      first_name: document.getElementById('firstName').value,
+      last_name: document.getElementById('lastName').value,
+      email: document.getElementById('email').value,
+      phone: document.getElementById('phone').value,
+      event_id: document.getElementById('event').value,
+      ticket_type: document.getElementById('ticketType').value,
+      status: document.getElementById('status').value,
+    };
+
+    const method = currentAttendeeId ? 'PUT' : 'POST';
+    const url = currentAttendeeId ? `/attendees/${currentAttendeeId}` : '/attendees';
+
+
+    fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(attendeeData),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Failed to save attendee');
+        }
+        return response.json();
+      })
+      .then((data) => {
+        console.log('Attendee saved successfully:', data);
+        alert('Attendee saved successfully!');
+        attendeeModal.style.display = 'none';
+        fetchAttendees();
+      })
+      .catch((error) => {
+        console.error('Error:', error.message);
+        alert('Failed to save attendee. Please try again.');
+      });
+  });
+
+  // Handle edit and delete actions
+  tableBody.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('.edit');
+    const deleteBtn = e.target.closest('.delete');
+    
+    if (editBtn) {
+      const id = editBtn.dataset.id;
+      currentAttendeeId = id;
+      
+      // Fetch attendee data and populate form
+      fetch(`/attendees/${id}`)
+        .then(response => response.json())
+        .then(attendee => {
+          modalTitle.textContent = 'Edit Attendee';
+          document.getElementById('firstName').value = attendee.first_name;
+          document.getElementById('lastName').value = attendee.last_name;
+          document.getElementById('email').value = attendee.email;
+          document.getElementById('phone').value = attendee.phone || '';
+          document.getElementById('event').value = attendee.event_id;
+          document.getElementById('ticketType').value = attendee.ticket_type;
+          document.getElementById('status').value = attendee.status;
+          attendeeModal.style.display = 'block';
+        });
+    }
+    
+    if (deleteBtn) {
+      const id = deleteBtn.dataset.id;
+      if (confirm('Are you sure you want to delete this attendee?')) {
+        fetch(`/attendees/${id}`, { method: 'DELETE' })
+          .then(response => response.json())
+          .then(() => fetchAttendees());
+      }
+    }
+  });
+
+  // Search functionality
+  const searchInput = document.getElementById('searchInput');
+  searchInput.addEventListener('input', (e) => {
+    const searchTerm = e.target.value.toLowerCase();
+    const rows = tableBody.querySelectorAll('tr');
+    
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+  });
+});
+  </script>
+</body>
+</html>

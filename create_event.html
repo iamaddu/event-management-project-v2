@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EventHub - Create New Event</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: url('https://images.unsplash.com/photo-1511578314322-379afb476865?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80') no-repeat center center fixed;
+      background-size: cover;
+      color: #fff;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      z-index: 0;
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding: 15px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+    }
+
+    .logo i {
+      color: #ff6b6b;
+      margin-right: 10px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 20px;
+    }
+
+    .nav-links a {
+      color: white;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+
+    .nav-links a:hover {
+      color: #ff6b6b;
+    }
+
+    /* Create Event Form Styles */
+    .form-container {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      padding: 30px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .form-title {
+      font-size: 28px;
+      text-align: center;
+      margin-bottom: 30px;
+      color: #fff;
+      position: relative;
+    }
+
+    .form-title::after {
+      content: '';
+      display: block;
+      width: 80px;
+      height: 4px;
+      background-color: #ff6b6b;
+      margin: 10px auto 0;
+      border-radius: 2px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group.full-width {
+      grid-column: span 2;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #ddd;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select,
+    .form-group .datetime-input {
+      width: 100%;
+      padding: 12px 15px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      background-color: rgba(0, 0, 0, 0.3);
+      color: #fff;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+
+    .form-group textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #ff6b6b;
+      box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.3);
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .submit-btn, .cancel-btn {
+      padding: 12px 25px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+
+    .submit-btn {
+      background-color: #ff6b6b;
+      color: white;
+    }
+
+    .submit-btn:hover {
+      background-color: #ff5252;
+      transform: translateY(-2px);
+    }
+
+    .cancel-btn {
+      background-color: transparent;
+      color: #ff6b6b;
+      border: 1px solid #ff6b6b;
+    }
+
+    .cancel-btn:hover {
+      background-color: rgba(255, 107, 107, 0.1);
+    }
+
+    .price-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .price-group span {
+      color: #ddd;
+    }
+
+    /* Responsive Styles */
+    @media (max-width: 768px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .form-group.full-width {
+        grid-column: span 1;
+      }
+      
+      header {
+        flex-direction: column;
+        gap: 15px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .form-container {
+        padding: 20px;
+      }
+      
+      .form-actions {
+        flex-direction: column;
+      }
+      
+      .submit-btn, .cancel-btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+    <header>
+      <div class="logo">
+        <i class="fas fa-calendar-alt"></i>
+        EventHub
+      </div>
+      <div class="nav-links">
+        <a href="event.html"><i class="fas fa-home"></i> Home</a>
+        <a href="create_event.html" class="active"><i class="fas fa-plus-circle"></i> Create Event</a>
+      </div>
+    </header>
+
+    <div class="form-container">
+      <h2 class="form-title">Create New Event</h2>
+      <form id="createEventForm">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="title">Event Title</label>
+            <input type="text" id="title" placeholder="Enter event title" required>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="description">Event Description</label>
+            <textarea id="description" placeholder="Enter detailed description of your event..." required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="organizer">Organizer</label>
+            <input type="text" id="organizer" placeholder="Your organization name" required>
+          </div>
+
+          <div class="form-group">
+            <label for="category">Category</label>
+            <select id="category" required>
+              <option value="">Select category</option>
+              <option value="Technology">Technology</option>
+              <option value="Business">Business</option>
+              <option value="Music">Music</option>
+              <option value="Art">Art</option>
+              <option value="Sports">Sports</option>
+              <option value="Food">Food & Drink</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="start">Start Date & Time</label>
+            <input type="datetime-local" id="start" required>
+          </div>
+
+          <div class="form-group">
+            <label for="end">End Date & Time</label>
+            <input type="datetime-local" id="end" required>
+          </div>
+
+          <div class="form-group">
+            <label for="location">location</label>
+            <input type="text" id="location" placeholder="e.g. New York" required>
+          </div>
+
+          <div class="form-group">
+            <label for="venue">Venue</label>
+            <input type="text" id="venue" placeholder="Venue name" required>
+          </div>
+
+          <div class="form-group">
+            <label for="capacity">Capacity</label>
+            <input type="number" id="capacity" placeholder="Max attendees" min="1" required>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="image">Event Image URL</label>
+            <input type="text" id="image" placeholder="Paste image URL (e.g. from Unsplash)">
+            <small style="color: #aaa; display: block; margin-top: 5px;">Leave blank for default image</small>
+          </div>
+
+          <div class="form-group">
+            <label>Standard Price</label>
+            <div class="price-group">
+              <span>$</span>
+              <input type="number" id="price_standard" placeholder="0.00" min="0" step="0.01" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>VIP Price</label>
+            <div class="price-group">
+              <span>$</span>
+              <input type="number" id="price_vip" placeholder="0.00" min="0" step="0.01" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Premium Price</label>
+            <div class="price-group">
+              <span>$</span>
+              <input type="number" id="price_premium" placeholder="0.00" min="0" step="0..01" required>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="cancel-btn" id="cancelBtn">Cancel</button>
+          <button type="submit" class="submit-btn">Create Event</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Success Modal -->
+  <div class="modal" id="successModal" style="display: none;">
+    <div class="modal-content" style="text-align: center; max-width: 500px;">
+      <span class="close-modal" id="closeSuccessModal">&times;</span>
+      <div style="font-size: 80px; color: #4CAF50; margin: 20px 0;">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <h2 style="margin-bottom: 20px;">Event Created Successfully!</h2>
+      <p>Your event has been successfully created and published.</p>
+      <div style="margin-top: 30px;">
+        <button class="submit-btn" id="viewEventBtn" style="width: 200px;">View Event</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('createEventForm');
+    form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  try {
+    // 1. Get category ID
+    const categoryName = document.getElementById('category').value;
+    const categoryRes = await fetch('/get-category-id', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: categoryName })
+    });
+    
+    if (!categoryRes.ok) throw new Error('Failed to get category ID');
+    const { id: category_id } = await categoryRes.json();
+
+    // 2. Prepare event data
+    const eventData = {
+      title: document.getElementById('title').value,
+      description: document.getElementById('description').value,
+      start: new Date(document.getElementById('start').value).toISOString().slice(0, 19).replace('T', ' '),
+      end: new Date(document.getElementById('end').value).toISOString().slice(0, 19).replace('T', ' '),
+      location: document.getElementById('location').value,
+      venue: document.getElementById('venue').value,
+      capacity: parseInt(document.getElementById('capacity').value),
+      price_standard: parseFloat(document.getElementById('price_standard').value),
+      price_vip: parseFloat(document.getElementById('price_vip').value),
+      price_premium: parseFloat(document.getElementById('price_premium').value),
+      category_id,
+      image: document.getElementById('image').value || null
+    };
+
+    console.log('Submitting event:', eventData);
+
+    // 3. Submit to server
+    const response = await fetch('/create-event', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify(eventData)
+    });
+
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Failed to create event');
+    
+    alert('Event created successfully!');
+    window.location.href = 'event.html';
+  } catch (error) {
+    console.error('Error:', error);
+    alert(`Error: ${error.message}`);
+  }
+});
+  </script>
+</body>
+</html>
+``` 
