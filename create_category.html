@@ -473,103 +473,109 @@
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // Icon preview functionality
-      const iconSelect = document.getElementById('categoryIcon');
-      const iconPreview = document.getElementById('iconPreview');
-      
-      iconSelect.addEventListener('change', () => {
-        if (iconSelect.value) {
-          iconPreview.innerHTML = `<i class="fas ${iconSelect.value}"></i>`;
-        } else {
-          iconPreview.innerHTML = '<i class="fas fa-question"></i>';
-        }
+  // RBAC: Only allow admin to access this page
+const userType = localStorage.getItem('user_type');
+if (userType !== 'admin') {
+  alert('You are not authorized to create categories.');
+  window.location.href = 'home.html';
+}
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // Icon preview functionality
+    const iconSelect = document.getElementById('categoryIcon');
+    const iconPreview = document.getElementById('iconPreview');
+    
+    iconSelect.addEventListener('change', () => {
+      if (iconSelect.value) {
+        iconPreview.innerHTML = `<i class="fas ${iconSelect.value}"></i>`;
+      } else {
+        iconPreview.innerHTML = '<i class="fas fa-question"></i>';
+      }
+    });
+
+    // Color picker functionality
+    const colorOptions = document.querySelectorAll('.color-option');
+    const colorInput = document.getElementById('categoryColor');
+    
+    colorOptions.forEach(option => {
+      option.addEventListener('click', () => {
+        colorOptions.forEach(opt => opt.classList.remove('selected'));
+        option.classList.add('selected');
+        colorInput.value = option.dataset.color;
       });
+    });
 
-      // Color picker functionality
-      const colorOptions = document.querySelectorAll('.color-option');
-      const colorInput = document.getElementById('categoryColor');
+    // Form submission
+    document.getElementById('createCategoryForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
       
-      colorOptions.forEach(option => {
-        option.addEventListener('click', () => {
-          colorOptions.forEach(opt => opt.classList.remove('selected'));
-          option.classList.add('selected');
-          colorInput.value = option.dataset.color;
-        });
-      });
+      // Get form values
+      const name = document.getElementById('categoryName').value.trim();
+      const slug = document.getElementById('categorySlug').value.trim();
+      const description = document.getElementById('categoryDescription').value.trim();
+      const icon = document.getElementById('categoryIcon').value;
+      const color = document.getElementById('categoryColor').value;
+      const status = document.getElementById('categoryStatus').checked ? 'active' : 'inactive';
+      const metaTitle = document.getElementById('categoryMetaTitle').value.trim();
+      const metaDescription = document.getElementById('categoryMetaDescription').value.trim();
 
-      // Form submission
-      document.getElementById('createCategoryForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        // Get form values
-        const name = document.getElementById('categoryName').value.trim();
-        const slug = document.getElementById('categorySlug').value.trim();
-        const description = document.getElementById('categoryDescription').value.trim();
-        const icon = document.getElementById('categoryIcon').value;
-        const color = document.getElementById('categoryColor').value;
-        const status = document.getElementById('categoryStatus').checked ? 'active' : 'inactive';
-        const metaTitle = document.getElementById('categoryMetaTitle').value.trim();
-        const metaDescription = document.getElementById('categoryMetaDescription').value.trim();
+      if (!name || !slug || !description || !icon) {
+        alert('Please fill in all required fields.');
+        return;
+      }
 
-        if (!name || !slug || !description || !icon) {
-          alert('Please fill in all required fields.');
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          window.location.href = 'login.html';
           return;
         }
 
-        try {
-          const token = localStorage.getItem('token');
-          if (!token) {
-            window.location.href = 'login.html';
-            return;
-          }
+        const response = await fetch('http://localhost:3000/categories', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name,
+            slug,
+            description,
+            icon,
+            color,
+            status,
+            metaTitle,
+            metaDescription
+          })
+        });
 
-          const response = await fetch('http://localhost:3000/create-category', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              name,
-              slug,
-              description,
-              icon,
-              color,
-              status,
-              metaTitle,
-              metaDescription
-            })
-          });
-
-          const data = await response.json();
-          
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to create category');
-          }
-
-          alert('Category created successfully!');
-          window.location.href = 'categories.html';
-        } catch (error) {
-          console.error('Error:', error.message);
-          alert(error.message);
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to create category');
         }
-      });
-
-      // Auto-generate slug from name
-      const nameInput = document.getElementById('categoryName');
-      const slugInput = document.getElementById('categorySlug');
-      
-      nameInput.addEventListener('blur', () => {
-        if (!slugInput.value) {
-          const slug = nameInput.value
-            .toLowerCase()
-            .replace(/[^\w\s]/g, '')
-            .replace(/\s+/g, '-');
-          slugInput.value = slug;
-        }
-      });
+        alert('Category created successfully!');
+        window.location.href = 'eventcategory.html';
+      } catch (error) {
+        console.error('Error:', error.message);
+        alert(error.message);
+      }
     });
+
+    // Auto-generate slug from name
+    const nameInput = document.getElementById('categoryName');
+    const slugInput = document.getElementById('categorySlug');
+    
+    nameInput.addEventListener('blur', () => {
+      if (!slugInput.value) {
+        const slug = nameInput.value
+          .toLowerCase()
+          .replace(/[^\w\s]/g, '')
+          .replace(/\s+/g, '-');
+        slugInput.value = slug;
+      }
+    });
+  });
   </script>
 </body>
 </html>

@@ -524,7 +524,7 @@
       });
 
       // Password validation
-      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+      const passwordRegex = /^(?=.[a-z])(?=.[A-Z])(?=.\d)(?=.[@$!%?&])[A-Za-z\d@$!%?&]{8,}$/;
 
       passwordInput.addEventListener('input', () => {
         const password = passwordInput.value;
@@ -559,9 +559,25 @@
       signupForm.addEventListener('submit', async function (e) {
         e.preventDefault();
 
+        // Collect all required fields
+        const first_name = document.getElementById('first_name').value.trim();
+        const last_name = document.getElementById('last_name').value.trim();
         const username = document.getElementById('username').value.trim();
         const email = document.getElementById('email').value.trim();
+        const phone = document.getElementById('phone').value.trim();
         const password = document.getElementById('password').value;
+        const confirm_password = document.getElementById('confirm_password').value;
+        const user_type = document.getElementById('user_type').value;
+
+        // Basic validation (add more as needed)
+        if (!first_name || !last_name || !username || !email || !password || !confirm_password || !user_type) {
+          alert('Please fill in all required fields.');
+          return;
+        }
+        if (password !== confirm_password) {
+          alert('Passwords do not match.');
+          return;
+        }
 
         try {
           const response = await fetch('/signup', {
@@ -569,7 +585,15 @@
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ username, email, password }),
+            body: JSON.stringify({
+              first_name,
+              last_name,
+              username,
+              email,
+              phone,
+              password,
+              user_type
+            }),
           });
 
           const data = await response.json();

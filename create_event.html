@@ -358,61 +358,80 @@
   </div>
 
   <script>
+    // RBAC: Only allow admin or organizer to access this page using /my-permissions endpoint
+    fetch('/my-permissions', {
+      headers: {
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.role !== 'admin' && data.role !== 'organizer') {
+        alert('You are not authorized to create events.');
+        if (data.role === 'attendee') window.location.href = 'attendee-dashboard.html';
+        else if (data.role === 'vendor') window.location.href = 'vendor-dashboard.html';
+        else if (data.role === 'speaker') window.location.href = 'session.html';
+        else window.location.href = 'home.html';
+        return;
+      }
+      // If authorized, nothing to do, page loads as normal
+    })
+    .catch(() => {
+      window.location.href = 'home.html';
+    });
+
     const form = document.getElementById('createEventForm');
     form.addEventListener('submit', async (e) => {
-  e.preventDefault();
+      e.preventDefault();
 
-  try {
-    // 1. Get category ID
-    const categoryName = document.getElementById('category').value;
-    const categoryRes = await fetch('/get-category-id', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: categoryName })
+      try {
+        // 1. Get category ID
+        const categoryName = document.getElementById('category').value;
+        const categoryRes = await fetch('/get-category-id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: categoryName })
+        });
+        
+        if (!categoryRes.ok) throw new Error('Failed to get category ID');
+        const { id: category_id } = await categoryRes.json();
+
+        // 2. Prepare event data
+        const eventData = {
+          title: document.getElementById('title').value,
+          description: document.getElementById('description').value,
+          start: new Date(document.getElementById('start').value).toISOString().slice(0, 19).replace('T', ' '),
+          end: new Date(document.getElementById('end').value).toISOString().slice(0, 19).replace('T', ' '),
+          location: document.getElementById('location').value,
+          venue: document.getElementById('venue').value,
+          capacity: parseInt(document.getElementById('capacity').value),
+          price_standard: parseFloat(document.getElementById('price_standard').value),
+          price_vip: parseFloat(document.getElementById('price_vip').value),
+          price_premium: parseFloat(document.getElementById('price_premium').value),
+          category_id,
+          image: document.getElementById('image').value || null
+        };
+
+        // 3. Submit to server
+        const response = await fetch('/create-event', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(eventData)
+        });
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Failed to create event');
+        
+        alert('Event created successfully!');
+        window.location.href = 'event.html';
+      } catch (error) {
+        console.error('Error:', error);
+        alert(`Error: ${error.message}`);
+      }
     });
-    
-    if (!categoryRes.ok) throw new Error('Failed to get category ID');
-    const { id: category_id } = await categoryRes.json();
-
-    // 2. Prepare event data
-    const eventData = {
-      title: document.getElementById('title').value,
-      description: document.getElementById('description').value,
-      start: new Date(document.getElementById('start').value).toISOString().slice(0, 19).replace('T', ' '),
-      end: new Date(document.getElementById('end').value).toISOString().slice(0, 19).replace('T', ' '),
-      location: document.getElementById('location').value,
-      venue: document.getElementById('venue').value,
-      capacity: parseInt(document.getElementById('capacity').value),
-      price_standard: parseFloat(document.getElementById('price_standard').value),
-      price_vip: parseFloat(document.getElementById('price_vip').value),
-      price_premium: parseFloat(document.getElementById('price_premium').value),
-      category_id,
-      image: document.getElementById('image').value || null
-    };
-
-    console.log('Submitting event:', eventData);
-
-    // 3. Submit to server
-    const response = await fetch('/create-event', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: JSON.stringify(eventData)
-    });
-
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Failed to create event');
-    
-    alert('Event created successfully!');
-    window.location.href = 'event.html';
-  } catch (error) {
-    console.error('Error:', error);
-    alert(`Error: ${error.message}`);
-  }
-});
   </script>
 </body>
 </html>
-``` 

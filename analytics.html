@@ -583,7 +583,6 @@
           <i class="fas fa-arrow-up"></i> 12% from last period
         </div>
       </div>
-
       <div class="stat-card">
         <div class="stat-card-header">
           <div class="stat-title">Total Attendees</div>
@@ -596,7 +595,6 @@
           <i class="fas fa-arrow-up"></i> 8% from last period
         </div>
       </div>
-
       <div class="stat-card">
         <div class="stat-card-header">
           <div class="stat-title">Total Revenue</div>
@@ -604,12 +602,11 @@
             <i class="fas fa-dollar-sign"></i>
           </div>
         </div>
-        <div class="stat-value" id="totalRevenue">$0.00</div>
+        <div class="stat-value" id="totalRevenue">₹0.00</div>
         <div class="stat-change positive">
           <i class="fas fa-arrow-up"></i> 15% from last period
         </div>
       </div>
-
       <div class="stat-card">
         <div class="stat-card-header">
           <div class="stat-title">Conversion Rate</div>
@@ -630,63 +627,44 @@
         <div class="chart-header">
           <div class="chart-title">Attendance by Event</div>
           <div class="chart-actions">
-            <button class="chart-action-btn">
-              <i class="fas fa-download"></i>
-            </button>
-            <button class="chart-action-btn">
-              <i class="fas fa-expand"></i>
-            </button>
+            <button class="chart-action-btn"><i class="fas fa-download"></i></button>
+            <button class="chart-action-btn"><i class="fas fa-expand"></i></button>
           </div>
         </div>
         <div class="chart-wrapper">
           <canvas id="attendanceChart"></canvas>
         </div>
       </div>
-
       <div class="chart-container">
         <div class="chart-header">
           <div class="chart-title">Revenue Trends</div>
           <div class="chart-actions">
-            <button class="chart-action-btn">
-              <i class="fas fa-download"></i>
-            </button>
-            <button class="chart-action-btn">
-              <i class="fas fa-expand"></i>
-            </button>
+            <button class="chart-action-btn"><i class="fas fa-download"></i></button>
+            <button class="chart-action-btn"><i class="fas fa-expand"></i></button>
           </div>
         </div>
         <div class="chart-wrapper">
           <canvas id="revenueChart"></canvas>
         </div>
       </div>
-
       <div class="chart-container">
         <div class="chart-header">
           <div class="chart-title">Ticket Types Distribution</div>
           <div class="chart-actions">
-            <button class="chart-action-btn">
-              <i class="fas fa-download"></i>
-            </button>
-            <button class="chart-action-btn">
-              <i class="fas fa-expand"></i>
-            </button>
+            <button class="chart-action-btn"><i class="fas fa-download"></i></button>
+            <button class="chart-action-btn"><i class="fas fa-expand"></i></button>
           </div>
         </div>
         <div class="chart-wrapper">
           <div id="ticketTypeChart"></div>
         </div>
       </div>
-
       <div class="chart-container">
         <div class="chart-header">
           <div class="chart-title">Monthly Performance</div>
           <div class="chart-actions">
-            <button class="chart-action-btn">
-              <i class="fas fa-download"></i>
-            </button>
-            <button class="chart-action-btn">
-              <i class="fas fa-expand"></i>
-            </button>
+            <button class="chart-action-btn"><i class="fas fa-download"></i></button>
+            <button class="chart-action-btn"><i class="fas fa-expand"></i></button>
           </div>
         </div>
         <div class="chart-wrapper">
@@ -713,7 +691,7 @@
               <th>Status</th>
             </tr>
           </thead>
-          <tbody id="analyticsTableBody">
+          <tbody id="eventPerformanceTableBody">
             <!-- Data will be inserted here by JavaScript -->
           </tbody>
         </table>
@@ -722,227 +700,207 @@
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      // Show loading overlay and load analytics data on page load
-      document.getElementById('loadingOverlay').style.display = 'flex';
-      loadAnalyticsData();
-      
-      // Time range filter handler
-      document.getElementById('timeRange').addEventListener('change', function() {
-        document.getElementById('loadingOverlay').style.display = 'flex';
-        // Optionally, pass the selected time range as a query parameter to your backend
-        setTimeout(() => {
-          loadAnalyticsData();
-        }, 1000);
-      });
+    // Role-based access control for Analytics page
+    fetch('/my-permissions', {
+      headers: {
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      // Only allow admin and organizer
+      if (data.role !== 'admin' && data.role !== 'organizer') {
+        if (data.role === 'attendee') window.location.href = '/attendee-dashboard.html';
+        else if (data.role === 'vendor') window.location.href = '/vendor-dashboard.html';
+        else if (data.role === 'speaker') window.location.href = '/session.html';
+        else window.location.href = '/login.html';
+        return;
+      }
+      // Optionally, you can use data.pages to show/hide analytics features
+    })
+    .catch(() => {
+      window.location.href = '/login.html';
     });
 
-    // Refresh analytics data every minute (60000 ms)
-    setInterval(loadAnalyticsData, 60000);
+    document.addEventListener('DOMContentLoaded', function () {
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      const tableBody = document.getElementById('eventPerformanceTableBody');
+      const totalEvents = document.getElementById('totalEvents');
+      const totalAttendees = document.getElementById('totalAttendees');
+      const totalRevenue = document.getElementById('totalRevenue');
+      const avgConversion = document.getElementById('conversionRate');
 
-    function loadAnalyticsData() {
-      fetch('/analytics')
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error('Failed to fetch analytics data');
+      function loadAnalyticsData() {
+        if (loadingOverlay) loadingOverlay.style.display = 'flex';
+        fetch('/analytics', {
+          headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
           }
-          return response.json();
         })
-        .then((data) => {
-          // Hide loading overlay and process data
-          document.getElementById('loadingOverlay').style.display = 'none';
-          processAnalyticsData(data);
-        })
-        .catch((error) => {
-          console.error('Error:', error.message);
-          alert('Failed to load analytics data. Please try again later.');
-          document.getElementById('loadingOverlay').style.display = 'none';
+          .then((response) => {
+            if (!response.ok) throw new Error('Failed to fetch analytics data');
+            return response.json();
+          })
+          .then((data) => {
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+            processAnalyticsData(data);
+            renderCharts(data);
+            renderTicketTypeChart();
+            renderMonthlyChart();
+          })
+          .catch((error) => {
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+            alert('Failed to load analytics data. Please try again later.');
+            console.error(error);
+          });
+      }
+
+      function processAnalyticsData(data) {
+        totalEvents.textContent = data.length;
+        let attendeesSum = 0, revenueSum = 0, conversionSum = 0;
+        data.forEach(ev => {
+          attendeesSum += Number(ev.attendee_count) || 0;
+          revenueSum += Number(ev.revenue) || 0;
+          conversionSum += Number(ev.conversion_rate) || 0;
         });
-    }
+        totalAttendees.textContent = attendeesSum;
+        totalRevenue.textContent = '₹' + revenueSum.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        avgConversion.textContent = data.length ? (conversionSum / data.length).toFixed(2) + '%' : '0%';
 
-    function processAnalyticsData(data) {
-      // Update summary cards
-      const totalEvents = data.length;
-      const totalAttendees = data.reduce((sum, event) => sum + event.attendee_count, 0);
-      const totalRevenue = data.reduce((sum, event) => sum + (event.revenue || 0), 0);
-      const avgConversion = data.reduce((sum, event) => sum + (event.conversion_rate || 0), 0) / data.length;
-      
-      document.getElementById('totalEvents').textContent = totalEvents;
-      document.getElementById('totalAttendees').textContent = totalAttendees.toLocaleString();
-      document.getElementById('totalRevenue').textContent = '$' + totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 });
-      document.getElementById('conversionRate').textContent = avgConversion.toFixed(1) + '%';
-      
-      // Populate analytics table
-      const tableBody = document.getElementById('analyticsTableBody');
-      tableBody.innerHTML = '';
-      
-      data.forEach((event) => {
-        const row = document.createElement('tr');
-        
-        // Determine capacity percentage
-        const capacityPercent = (event.attendee_count / event.capacity) * 100;
-        let capacityClass = 'conversion-high';
-        if (capacityPercent < 60) capacityClass = 'conversion-low';
-        else if (capacityPercent < 80) capacityClass = 'conversion-medium';
-        
-        // Determine status badge
-        let statusBadge = '';
-        if (event.status === 'completed') {
-          statusBadge = `<span class="conversion-badge conversion-high">Completed</span>`;
-        } else if (event.status === 'upcoming') {
-          statusBadge = `<span class="conversion-badge conversion-medium">Upcoming</span>`;
-        } else {
-          statusBadge = `<span class="conversion-badge conversion-low">Cancelled</span>`;
+        tableBody.innerHTML = '';
+        if (!data.length) {
+          tableBody.innerHTML = '<tr><td colspan="7">No event data found.</td></tr>';
+          return;
         }
-        
-        row.innerHTML = `
-          <td>
-            <div class="event-name">
-              <div class="event-icon">
-                <i class="fas fa-calendar-alt"></i>
-              </div>
-              <div>${event.event_name}</div>
-            </div>
-          </td>
-          <td>${new Date(event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-          <td>${event.attendee_count.toLocaleString()}</td>
-          <td>
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <div style="flex-grow: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;">
-                <div style="width: ${capacityPercent}%; height: 100%; background: ${capacityPercent > 80 ? '#10b981' : capacityPercent > 60 ? '#f59e0b' : '#ef4444'}; border-radius: 3px;"></div>
-              </div>
-              <span>${Math.round(capacityPercent)}%</span>
-            </div>
-          </td>
-          <td>$${(event.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-          <td>
-            <span class="conversion-badge ${event.conversion_rate > 35 ? 'conversion-high' : event.conversion_rate > 25 ? 'conversion-medium' : 'conversion-low'}">
-              ${event.conversion_rate ? event.conversion_rate.toFixed(1) : '0.0'}%
-            </span>
-          </td>
-          <td>${statusBadge}</td>
-        `;
-        tableBody.appendChild(row);
-      });
-      
-      // Create charts
-      createCharts(data);
-    }
+        data.forEach(ev => {
+          let badgeClass = 'badge-inactive';
+          let statusText = ev.status;
+          if (statusText && statusText.toLowerCase() === 'completed') badgeClass = 'badge-active';
+          else if (statusText && statusText.toLowerCase() === 'upcoming') badgeClass = 'badge-upcoming';
+          else if (statusText && statusText.toLowerCase() === 'cancelled') badgeClass = 'badge-inactive';
 
-    function createCharts(data) {
-      const eventNames = data.map((event) => event.event_name);
-      const attendeeCounts = data.map((event) => event.attendee_count);
-      const revenues = data.map((event) => event.revenue || 0);
-      const capacities = data.map((event) => event.capacity);
+          tableBody.innerHTML += `
+            <tr>
+              <td>${ev.event_name || '-'}</td>
+              <td>${ev.event_date ? new Date(ev.event_date).toLocaleDateString() : '-'}</td>
+              <td>${ev.attendee_count || 0}</td>
+              <td>${ev.capacity || 0}</td>
+              <td>₹${(ev.revenue || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+              <td>${ev.conversion_rate != null ? ev.conversion_rate + '%' : '-'}</td>
+              <td><span class="badge ${badgeClass}">${statusText || '-'}</span></td>
+            </tr>
+          `;
+        });
+      }
 
-      // Attendance Chart
-      const attendanceCtx = document.getElementById('attendanceChart').getContext('2d');
-      new Chart(attendanceCtx, {
-        type: 'bar',
-        data: {
-          labels: eventNames,
-          datasets: [
-            {
+      let attendanceChart, revenueChart;
+
+      function renderCharts(data) {
+        // Attendance by Event (Bar Chart)
+        const attendanceLabels = data.map(ev => ev.event_name);
+        const attendanceData = data.map(ev => ev.attendee_count);
+
+        if (attendanceChart) attendanceChart.destroy();
+        const attendanceCtx = document.getElementById('attendanceChart').getContext('2d');
+        attendanceChart = new Chart(attendanceCtx, {
+          type: 'bar',
+          data: {
+            labels: attendanceLabels,
+            datasets: [{
               label: 'Attendees',
-              data: attendeeCounts,
-              backgroundColor: 'rgba(0, 195, 255, 0.7)',
-              borderColor: 'rgba(0, 195, 255, 1)',
-              borderWidth: 1,
-            },
-            {
-              label: 'Capacity',
-              data: capacities,
-              backgroundColor: 'rgba(148, 163, 184, 0.3)',
-              borderColor: 'rgba(148, 163, 184, 0.5)',
-              borderWidth: 1,
-              type: 'line',
-              fill: false,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'top',
-              labels: {
-                color: '#f8fafc',
-              },
-            },
+              data: attendanceData,
+              backgroundColor: '#00c3ff'
+            }]
           },
-          scales: {
-            y: {
-              beginAtZero: true,
-              grid: {
-                color: 'rgba(255, 255, 255, 0.1)',
-              },
-              ticks: {
-                color: '#94a3b8',
-              },
-            },
-            x: {
-              grid: {
-                color: 'rgba(255, 255, 255, 0.1)',
-              },
-              ticks: {
-                color: '#94a3b8',
-              },
-            },
-          },
-        },
-      });
+          options: {
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#f8fafc' } },
+              y: { beginAtZero: true, ticks: { color: '#f8fafc' } }
+            }
+          }
+        });
 
-      // Revenue Chart
-      const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-      new Chart(revenueCtx, {
-        type: 'line',
-        data: {
-          labels: eventNames,
-          datasets: [
-            {
-              label: 'Revenue ($)',
-              data: revenues,
+        // Revenue Trends (Line Chart)
+        const revenueLabels = data.map(ev => ev.event_name);
+        const revenueData = data.map(ev => ev.revenue);
+
+        if (revenueChart) revenueChart.destroy();
+        const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+        revenueChart = new Chart(revenueCtx, {
+          type: 'line',
+          data: {
+            labels: revenueLabels,
+            datasets: [{
+              label: 'Revenue',
+              data: revenueData,
+              borderColor: '#ff4d7d',
+              backgroundColor: 'rgba(255,77,125,0.2)',
               fill: true,
-              backgroundColor: 'rgba(124, 58, 237, 0.2)',
-              borderColor: 'rgba(124, 58, 237, 1)',
-              tension: 0.3,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'top',
-              labels: {
-                color: '#f8fafc',
-              },
-            },
+              tension: 0.4
+            }]
           },
-          scales: {
-            y: {
-              beginAtZero: true,
-              grid: {
-                color: 'rgba(255, 255, 255, 0.1)',
-              },
-              ticks: {
-                color: '#94a3b8',
-              },
-            },
-            x: {
-              grid: {
-                color: 'rgba(255, 255, 255, 0.1)',
-              },
-              ticks: {
-                color: '#94a3b8',
-              },
-            },
-          },
-        },
-      });
-    }
+          options: {
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#f8fafc' } },
+              y: { beginAtZero: true, ticks: { color: '#f8fafc' } }
+            }
+          }
+        });
+      }
+
+      // Ticket Types Distribution (Donut Chart)
+      function renderTicketTypeChart() {
+        document.querySelector("#ticketTypeChart").innerHTML = "";
+        fetch('/analytics/ticket-types', {
+          headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
+          }
+        })
+          .then(res => res.json())
+          .then(data => {
+            const chart = new ApexCharts(document.querySelector("#ticketTypeChart"), {
+              chart: { type: 'donut', height: 300 },
+              series: data.map(t => t.count),
+              labels: data.map(t => t.type),
+              colors: ['#00c3ff', '#ff4d7d', '#10b981', '#f59e0b'],
+              legend: { labels: { colors: ['#f8fafc'] } }
+            });
+            chart.render();
+          });
+      }
+
+      // Monthly Performance (Bar Chart)
+      function renderMonthlyChart() {
+        document.querySelector("#monthlyChart").innerHTML = "";
+        fetch('/analytics/monthly-performance', {
+          headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
+          }
+        })
+          .then(res => res.json())
+          .then(data => {
+            const chart = new ApexCharts(document.querySelector("#monthlyChart"), {
+              chart: { type: 'bar', height: 300 },
+              series: [
+                { name: 'Revenue', data: data.map(m => m.revenue) },
+                { name: 'Attendees', data: data.map(m => m.attendees) }
+              ],
+              xaxis: { categories: data.map(m => m.month), labels: { style: { colors: '#f8fafc' } } },
+              yaxis: { labels: { style: { colors: '#f8fafc' } } },
+              colors: ['#00c3ff', '#10b981'],
+              legend: { labels: { colors: ['#f8fafc'] } }
+            });
+            chart.render();
+          });
+      }
+
+      // Initial load
+      loadAnalyticsData();
+      // Refresh every minute
+      setInterval(loadAnalyticsData, 60000);
+    });
   </script>
 </body>
 </html>

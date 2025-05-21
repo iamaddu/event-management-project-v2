@@ -6,10 +6,23 @@ const mysql = require('mysql');
 const path = require('path');
 const cors = require('cors');
 const axios = require('axios');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
 const PORT = 3000;
 const SECRET_KEY = 'your_secret_key'; // Replace with a secure key
+
+// Socket.io setup
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // For development, allow all. Restrict in production.
+    methods: ["GET", "POST"]
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -33,12 +46,30 @@ db.connect((err) => {
 });
 
 // ========================
-// Category CRUD routes
+
+// Category Endpoints
 // ========================
 
-// Get all categories
+// Helper to generate slug
+function generateSlug(text) {
+  return text
+    ? text.toString().toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^\w\-]+/g, '')
+      .replace(/\-\-+/g, '-')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '')
+    : '';
+}
+
+// Get all categories with event count
 app.get('/categories', (req, res) => {
-  const query = 'SELECT * FROM categories';
+  const query = `
+    SELECT c.*, 
+      (SELECT COUNT(*) FROM events e WHERE e.category_id = c.id) AS event_count
+    FROM categories c
+  `;
   db.query(query, (err, results) => {
     if (err) {
       console.error('Error fetching categories:', err);
@@ -48,42 +79,64 @@ app.get('/categories', (req, res) => {
   });
 });
 
-// Create a new category
-app.post('/categories', (req, res) => {
+// Get category by ID
+app.get('/categories/:id', (req, res) => {
+  const { id } = req.params;
+  const query = 'SELECT * FROM categories WHERE id = ?';
+  db.query(query, [id], (err, results) => {
+    if (err) {
+      console.error('Error fetching category:', err.message);
+      return res.status(500).json({ error: 'Failed to fetch category details' });
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    res.json(results[0]);
+  });
+});
+
+// Create a new category (only admin)
+app.post('/categories', authenticateToken, authorizeRoles('admin'), (req, res) => {
   const { name, slug, description, icon, color, status, metaTitle, metaDescription } = req.body;
   const query = `
     INSERT INTO categories (name, slug, description, icon, color, status, metaTitle, metaDescription)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  db.query(query, [name, slug, description, icon, color, status, metaTitle, metaDescription], (err, result) => {
+  const params = [name, slug, description, icon, color, status, metaTitle, metaDescription];
+  db.query(query, params, (err, result) => {
     if (err) {
       console.error('Error creating category:', err);
       return res.status(500).json({ error: 'Failed to create category' });
     }
-    res.json({ message: 'Category created', categoryId: result.insertId });
+    res.json({ message: 'Category created successfully', id: result.insertId });
   });
 });
 
-// Update a category
-app.put('/categories/:id', (req, res) => {
-  const { id } = req.params;
-  const { name, slug, description, icon, color, status, metaTitle, metaDescription } = req.body;
+// Update a category (only admin)
+app.put('/categories/:id', authenticateToken, authorizeRoles('admin'), (req, res) => {
+  const categoryId = req.params.id;
+  const {
+    name, slug, description, icon, color, status, metaTitle, metaDescription
+  } = req.body;
+
   const query = `
     UPDATE categories
     SET name = ?, slug = ?, description = ?, icon = ?, color = ?, status = ?, metaTitle = ?, metaDescription = ?
     WHERE id = ?
   `;
-  db.query(query, [name, slug, description, icon, color, status, metaTitle, metaDescription, id], (err) => {
+  const params = [name, slug, description, icon, color, status, metaTitle, metaDescription, categoryId];
+
+  db.query(query, params, (err, result) => {
     if (err) {
       console.error('Error updating category:', err);
       return res.status(500).json({ error: 'Failed to update category' });
     }
-    res.json({ message: 'Category updated' });
+    res.json({ message: 'Category updated successfully' });
   });
 });
 
 // Delete a category
-app.delete('/categories/:id', (req, res) => {
+app.delete('/categories/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
   const query = 'DELETE FROM categories WHERE id = ?';
   db.query(query, [id], (err) => {
@@ -112,26 +165,6 @@ app.put('/category/:categoryId', (req, res) => {
     res.json({ message: 'Category updated successfully' });
   });
 });
-
-// Get category by ID
-app.get('/categories/:id', (req, res) => {
-  const { id } = req.params;
-  const query = 'SELECT * FROM categories WHERE id = ?';
-  db.query(query, [id], (err, results) => {
-    if (err) {
-      console.error('Error fetching category:', err.message);
-      return res.status(500).json({ error: 'Failed to fetch category details' });
-    }
-    if (results.length === 0) {
-      return res.status(404).json({ error: 'Category not found' });
-    }
-    res.json(results[0]);
-  });
-});
-
-// Register sessionRoutes (if any)
-const sessionRoutes = require('./backend/routes/sessionRoutes');
-app.use('/sessions', sessionRoutes);
 
 // ========================
 // Signup & Login Endpoints
@@ -163,25 +196,134 @@ app.post('/signup', async (req, res) => {
   }
 });
 
-// Login Endpoint
+// Login Endpoint with Remember Me
 app.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  const query = 'SELECT * FROM users WHERE username = ?';
-  db.query(query, [username], async (err, results) => {
+  const { username, password, remember } = req.body;
+  const query = 'SELECT * FROM users WHERE username = ? OR email = ?';
+  db.query(query, [username, username], (err, results) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (results.length === 0) return res.status(400).json({ error: 'User not found' });
+    const user = results[0];
+    bcrypt.compare(password, user.password, (bcryptErr, isMatch) => {
+      if (bcryptErr) return res.status(500).json({ error: 'Error comparing passwords' });
+      if (!isMatch) return res.status(400).json({ error: 'Invalid password' });
+      const tokenPayload = { 
+        id: user.id, 
+        username: user.username, 
+        email: user.email, 
+        user_type: user.user_type // <-- add this!
+      };
+      const tokenOptions = {};
+      tokenOptions.expiresIn = remember ? '7d' : '1d';
+      const token = jwt.sign(tokenPayload, SECRET_KEY, tokenOptions);
+      res.json({ token, redirect: '/home.html', user_type: user.user_type });
+    });
+  });
+});
+
+// Forgot Password endpoint
+app.post('/forgot-password', (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required.' });
+
+  const userQuery = 'SELECT * FROM users WHERE email = ?';
+  db.query(userQuery, [email], (err, results) => {
     if (err) {
-      console.error('Error fetching user:', err.message);
-      return res.status(500).json({ error: 'Internal server error' });
+      console.error('Error fetching user for forgot password:', err.message);
+      return res.status(500).json({ error: 'Database error' });
     }
     if (results.length === 0) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+      return res.status(404).json({ error: 'User not found.' });
     }
+
     const user = results[0];
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 3600000); // token valid for 1 hour
+
+    const insertQuery = 'INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)';
+    db.query(insertQuery, [user.id, resetToken, expires], (err, result) => {
+      if (err) {
+        console.error('Error inserting password reset token:', err.message);
+        return res.status(500).json({ error: 'Database error' });
+      }
+      
+      // Mock email sending for development/testing without real SMTP credentials
+      let transporter = nodemailer.createTransport({
+        service: 'gmail', // or your provider
+        auth: {
+          user: 'your-email@gmail.com',
+          pass: 'your-app-password'
+        }
+      });
+
+      // Compose the reset URL (for example, a link to your front-end reset password page)
+      const resetLink = `http://localhost:3000/reset-password.html?token=${resetToken}`;
+
+      // Email content
+      let mailOptions = {
+        from: '"Event Management" <no-reply@yourdomain.com>',
+        to: email,
+        subject: 'Password Reset Request',
+        text: `Hello,\n\nYou requested a password reset. Please click on the following link (or copy-paste it into your browser) to reset your password:\n\n${resetLink}\n\nIf you did not request this, please ignore this email.`,
+        html: `<p>Hello,</p>
+               <p>You requested a password reset. Please click on the following link (or copy-paste it into your browser) to reset your password:</p>
+               <p><a href="${resetLink}">${resetLink}</a></p>
+               <p>If you did not request this, please ignore this email.</p>`
+      };
+
+      // Send email
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error('Error sending password reset email:', error);
+          return res.status(500).json({ error: 'Failed to send password reset email', details: error.message });
+        }
+        console.log('Password reset email sent:', info.response);
+      // Also return the reset token in the response for dev/testing convenience
+      res.json({ message: 'Password reset email sent successfully. Please check your email.', resetToken });
+      });
+    });
+  });
+});
+
+// Reset Password endpoint
+app.post('/reset-password', (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: 'Token and new password are required.' });
+  }
+
+  const selectQuery = 'SELECT * FROM password_resets WHERE token = ? AND expires_at > NOW()';
+  db.query(selectQuery, [token], (err, results) => {
+    if (err) {
+      console.error('Error fetching password reset token:', err.message);
+      return res.status(500).json({ error: 'Database error' });
     }
-    const token = jwt.sign({ id: user.id, username: user.username, email: user.email }, SECRET_KEY, { expiresIn: '1h' });
-    res.json({ message: 'Login successful', token, redirect: 'home.html' });
+    if (results.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired token.' });
+    }
+
+    const resetRecord = results[0];
+    const updateQuery = 'UPDATE users SET password = ? WHERE id = ?';
+    // Hash the new password before saving
+    bcrypt.hash(newPassword, 10, (hashErr, hashedPassword) => {
+      if (hashErr) {
+        console.error('Error hashing new password:', hashErr.message);
+        return res.status(500).json({ error: 'Failed to hash password' });
+      }
+      db.query(updateQuery, [hashedPassword, resetRecord.user_id], (err, result) => {
+        if (err) {
+          console.error('Error updating password:', err.message);
+          return res.status(500).json({ error: 'Database error' });
+        }
+        const deleteQuery = 'DELETE FROM password_resets WHERE token = ?';
+        db.query(deleteQuery, [token], (err, result) => {
+          if (err) {
+            console.error('Error deleting password reset token:', err.message);
+          }
+        });
+        res.json({ message: 'Password has been reset successfully.' });
+      });
+    });
   });
 });
 
@@ -215,8 +357,41 @@ app.get('/', (req, res) => {
 // Event Endpoints
 // ========================
 
+// Before saving to DB:
+const safeDate = (date) => {
+  if (!date || date === '0000-00-00 00:00:00' || date === '') return null;
+  return date;
+};
+
 // Create Event Endpoint
-app.post('/create-event', authenticateToken, (req, res) => {
+app.post('/create-event', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  const {
+    title, description, start, end, location, venue, capacity,
+    price_standard, price_vip, price_premium, category_id, image
+  } = req.body;
+
+  const query = `
+    INSERT INTO events
+    (title, description, start, end, location, venue, capacity, price_standard, price_vip, price_premium, category_id, image, organizer)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  const params = [
+    title, description, start, end, location, venue, capacity,
+    price_standard, price_vip, price_premium, category_id, image, req.user.id
+  ];
+
+  db.query(query, params, (err, result) => {
+    if (err) {
+      console.error('Error creating event:', err);
+      return res.status(500).json({ error: 'Failed to create event' });
+    }
+    res.json({ message: 'Event created successfully', id: result.insertId });
+  });
+});
+
+// Update Event Endpoint
+app.put('/events/:id', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  const { id } = req.params;
   const {
     title,
     description,
@@ -231,41 +406,36 @@ app.post('/create-event', authenticateToken, (req, res) => {
     category_id,
     image
   } = req.body;
-  const organizer = req.user.id;
-  const query = `
-    INSERT INTO events (
-      title, description, organizer, start, end, location, venue, capacity, price_standard, price_vip, price_premium, status, category_id, image
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Published', ?, ?)
-  `;
-  db.query(
-    query,
-    [title, description, organizer, start, end, location, venue, capacity, price_standard, price_vip, price_premium, category_id, image || null],
-    (err, result) => {
-      if (err) {
-        console.error('Error inserting event:', err);
-        return res.status(500).json({ error: 'Failed to create event', details: err.message });
-      }
-      res.json({ message: 'Event created successfully', eventId: result.insertId });
-    }
-  );
-});
-
-// Update Event Endpoint
-app.put('/events/:id', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  const { title, description, start, end, location, venue, capacity, price_standard, price_vip, price_premium, category_id, image } = req.body;
   const query = `
     UPDATE events
     SET title = ?, description = ?, start = ?, end = ?, location = ?, venue = ?, capacity = ?, price_standard = ?, price_vip = ?, price_premium = ?, category_id = ?, image = ?
     WHERE id = ?
   `;
-  db.query(query, [title, description, start, end, location, venue, capacity, price_standard, price_vip, price_premium, category_id, image || null, id], (err, result) => {
-    if (err) {
-      console.error('Error updating event:', err.message);
-      return res.status(500).json({ error: 'Failed to update event', details: err.message });
+  db.query(
+    query,
+    [
+      title,
+      description,
+      safeDate(start),
+      safeDate(end),
+      location,
+      venue,
+      capacity,
+      price_standard,
+      price_vip,
+      price_premium,
+      category_id,
+      image || null,
+      id
+    ],
+    (err, result) => {
+      if (err) {
+        console.error('Error updating event:', err.message);
+        return res.status(500).json({ error: 'Failed to update event', details: err.message });
+      }
+      res.json({ message: 'Event updated successfully' });
     }
-    res.json({ message: 'Event updated successfully' });
-  });
+  );
 });
 
 // GET event details using MySQL query
@@ -309,13 +479,18 @@ app.delete('/events/:id', (req, res) => {
 // Create Category Endpoint (via custom slug logic)
 app.post('/create-category', authenticateToken, (req, res) => {
   let { name, slug, description, icon, color, status, metaTitle, metaDescription } = req.body;
+slug = slug && slug.trim() ? generateSlug(slug) : generateSlug(name);
+if (!slug) return res.status(400).json({ error: 'Category name or slug required.' });
   const generateSlug = (text) => {
-    return text.toString().toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[^\w\-]+/g, '')
-      .replace(/\-\-+/g, '-')
-      .replace(/^-+/, '')
-      .replace(/-+$/, '');
+    return text
+      ? text.toString().toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '')
+      : '';
   };
   if (!slug) {
     slug = generateSlug(name);
@@ -371,37 +546,73 @@ app.get('/events', (req, res) => {
 // Analytics Endpoint
 // ========================
 
-app.get('/analytics', (req, res) => {
+app.get('/analytics', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  // This query gets all events and aggregates attendee count and revenue from tickets
   const query = `
     SELECT 
-      e.id AS event_id,
+      e.id,
       e.title AS event_name,
       e.start AS event_date,
-      CAST(e.capacity AS UNSIGNED) AS capacity,
-      CASE 
-        WHEN LOWER(e.status) = 'cancelled' THEN 'Cancelled'
-        WHEN LOWER(e.status) = 'published' THEN 
-          CASE 
-            WHEN e.start < NOW() THEN 'Completed'
-            ELSE 'Upcoming'
-          END
-        ELSE 'Upcoming'
-      END AS status,
-      IFNULL(SUM(p.quantity), 0) AS attendee_count,
-      IFNULL(SUM(p.total_price), 0) AS revenue,
-      CASE 
-        WHEN e.capacity > 0 THEN ROUND((IFNULL(SUM(p.quantity), 0) / CAST(e.capacity AS UNSIGNED)) * 100, 2)
-        ELSE 0
-      END AS conversion_rate
+      e.capacity,
+      e.status,
+      COALESCE(SUM(t.quantity), 0) AS attendee_count,
+      COALESCE(SUM(t.total_price), 0) AS revenue,
+      ROUND(
+        CASE WHEN e.capacity > 0 THEN (COALESCE(SUM(t.quantity), 0) / e.capacity) * 100 ELSE 0 END, 2
+      ) AS conversion_rate
     FROM events e
-    LEFT JOIN purchases p ON e.id = p.event_id
-    GROUP BY e.id, e.title, e.start, e.capacity, e.status
-    ORDER BY e.start DESC
+    LEFT JOIN tickets t ON t.event_id = e.id
+    GROUP BY e.id
+    ORDER BY e.start ASC
   `;
   db.query(query, (err, results) => {
     if (err) {
-      console.error('Error fetching analytics data:', err.message);
-      return res.status(500).json({ error: 'Failed to fetch analytics data' });
+      console.error('Error fetching analytics:', err);
+      return res.status(500).json({ error: 'Failed to fetch analytics' });
+    }
+    res.json(results);
+  });
+});
+
+// Ticket Types Distribution
+app.get('/analytics/ticket-types', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  const query = `
+    SELECT 
+      CASE 
+        WHEN t.quantity > 0 AND e.price_vip > 0 AND t.total_price / t.quantity = e.price_vip THEN 'VIP'
+        WHEN t.quantity > 0 AND e.price_premium > 0 AND t.total_price / t.quantity = e.price_premium THEN 'Premium'
+        ELSE 'General'
+      END AS type,
+      SUM(t.quantity) AS count
+    FROM tickets t
+    JOIN events e ON t.event_id = e.id
+    GROUP BY type
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching ticket types:', err);
+      return res.status(500).json({ error: 'Failed to fetch ticket types' });
+    }
+    res.json(results);
+  });
+});
+
+// Monthly Performance
+app.get('/analytics/monthly-performance', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  const query = `
+    SELECT 
+      DATE_FORMAT(e.start, '%b %Y') AS month,
+      COALESCE(SUM(t.total_price), 0) AS revenue,
+      COALESCE(SUM(t.quantity), 0) AS attendees
+    FROM events e
+    LEFT JOIN tickets t ON t.event_id = e.id
+    GROUP BY YEAR(e.start), MONTH(e.start)
+    ORDER BY e.start ASC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching monthly performance:', err);
+      return res.status(500).json({ error: 'Failed to fetch monthly performance' });
     }
     res.json(results);
   });
@@ -412,33 +623,21 @@ app.get('/analytics', (req, res) => {
 // ========================
 
 // Fetch all attendees
-app.get('/attendees', (req, res) => {
-  const query = `
-    SELECT 
-      a.id AS attendee_id,
-      a.first_name,
-      a.last_name,
-      a.email,
-      a.phone,
-      e.title AS event_name,
-      a.ticket_type,
-      a.status,
-      a.created_at
-    FROM attendees a
-    LEFT JOIN events e ON a.event_id = e.id
-  `;
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error fetching attendees:', err);
-      return res.status(500).json({ error: 'Failed to fetch attendees', details: err.message });
-    }
-    console.log('Attendee records fetched successfully:', results);
+app.get('/attendees', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  let query = 'SELECT a.*, e.title as event_name FROM attendees a JOIN events e ON a.event_id = e.id';
+  let params = [];
+  if (req.user.user_type === 'organizer') {
+    query += ' WHERE e.organizer = ?';
+    params.push(req.user.id);
+  }
+  db.query(query, params, (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch attendees' });
     res.json(results);
   });
 });
 
 // Get attendee by ID
-app.get('/attendees/:id', (req, res) => {
+app.get('/attendees/:id', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
   const { id } = req.params;
   const query = 'SELECT * FROM attendees WHERE id = ?';
   db.query(query, [id], (err, results) => {
@@ -452,7 +651,7 @@ app.get('/attendees/:id', (req, res) => {
 app.get('/attendees/my-attendees', authenticateToken, (req, res) => {
   const userEmail = req.user.email;
   const query = `
-    SELECT 
+   
       a.id AS attendee_id, 
       a.first_name, 
       a.last_name, 
@@ -580,10 +779,10 @@ app.put('/tickets/:id/cancel', authenticateToken, (req, res) => {
     }
     const ticket = results[0];
     const insertQuery = `
-      INSERT INTO cancelled_tickets (ticket_id, event_id, user_id, quantity, total_price, payment_method)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO cancelled_tickets (ticket_id, event_id, user_id, ticket_type, quantity, total_price, payment_method)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
-    db.query(insertQuery, [ticket.id, ticket.event_id, ticket.user_id, ticket.quantity, ticket.total_price, ticket.payment_method], (err, result) => {
+    db.query(insertQuery, [ticket.id, ticket.event_id, ticket.user_id, ticket.ticket_type, ticket.quantity, ticket.total_price, ticket.payment_method], (err, result) => {
       if (err) {
         console.error('Error saving cancelled ticket:', err);
         return res.status(500).json({ error: 'Failed to save cancelled ticket', details: err.message });
@@ -597,16 +796,6 @@ app.put('/tickets/:id/cancel', authenticateToken, (req, res) => {
         res.json({ message: 'Ticket cancelled successfully' });
       });
     });
-  });
-});
-
-// Delete ticket
-app.delete('/tickets/:id', (req, res) => {
-  const { id } = req.params;
-  const query = 'DELETE FROM tickets WHERE id = ?';
-  db.query(query, [id], (err) => {
-    if (err) return res.status(500).json({ error: 'Failed to delete ticket' });
-    res.json({ message: 'Ticket deleted' });
   });
 });
 
@@ -649,10 +838,10 @@ app.put('/purchases/:id/cancel', authenticateToken, (req, res) => {
     }
     const purchase = results[0];
     const insertQuery = `
-      INSERT INTO cancelled_tickets (ticket_id, event_id, user_id, quantity, total_price, payment_method)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO cancelled_tickets (ticket_id, event_id, user_id, ticket_type, quantity, total_price, payment_method)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
-    db.query(insertQuery, [purchase.id, purchase.event_id, purchase.user_id, purchase.quantity, purchase.total_price, purchase.payment_method], (err, insertResult) => {
+    db.query(insertQuery, [purchase.id, purchase.event_id, purchase.user_id, purchase.ticket_type, purchase.quantity, purchase.total_price, purchase.payment_method], (err, insertResult) => {
       if (err) {
         console.error('Error saving cancelled purchase:', err.message);
         return res.status(500).json({ error: 'Failed to save cancelled purchase', details: err.message });
@@ -675,42 +864,92 @@ app.put('/purchases/:id/cancel', authenticateToken, (req, res) => {
 
 app.post('/register', authenticateToken, (req, res) => {
   const userId = req.user.id;
-  const { eventId, firstName, lastName, email, phone, ticketType, quantity, specialRequests } = req.body;
-  const query = `INSERT INTO registrations (user_id, event_id, firstName, lastName, email, phone, ticketType, quantity, specialRequests, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
-  db.query(query, [userId, eventId, firstName, lastName, email, phone, ticketType, quantity, specialRequests], (err, result) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ success: false, error: err.message });
+  const {
+    eventId,
+    firstName,
+    lastName,
+    email,
+    phone,
+    ticketType,
+    quantity,
+    specialRequests
+  } = req.body;
+
+  const query = `
+    INSERT INTO registrations
+      (user_id, event_id, firstName, lastName, email, phone, ticketType, quantity, specialRequests)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  db.query(
+    query,
+    [userId, eventId, firstName, lastName, email, phone, ticketType, quantity, specialRequests || ""],
+    (err, result) => {
+      if (err) {
+        console.error('Error registering:', err.message);
+        return res.status(500).json({ error: 'Registration failed' });
+      }
+      res.json({ message: 'Registration successful' });
     }
-    res.json({ success: true });
-  });
+  );
 });
 
 // Updated GET /my-registrations endpoint to join event details
 app.get('/my-registrations', authenticateToken, (req, res) => {
   const userId = req.user.id;
   const query = `
-    SELECT 
-      r.*, 
-      e.title AS event_name, 
-      e.start AS event_date, 
-      e.venue,
-      (CASE 
-         WHEN LOWER(r.ticketType) = 'standard' THEN 25 * r.quantity 
-         WHEN LOWER(r.ticketType) = 'vip' THEN 50 * r.quantity 
-         WHEN LOWER(r.ticketType) = 'premium' THEN 75 * r.quantity 
-         ELSE 0 
-       END) AS total_price,
-      e.status
-    FROM registrations r
-    JOIN events e ON r.event_id = e.id
-    WHERE r.user_id = ?
+    SELECT * FROM (
+      SELECT 
+        p.id,
+        p.event_id,
+        e.title AS event_name,
+        e.start AS event_date,
+        e.venue,
+        p.ticket_type,
+        p.quantity,
+        p.total_price,
+        p.payment_method,
+        p.created_at,
+        CASE 
+          WHEN e.start > NOW() THEN 'upcoming'
+          ELSE 'past'
+        END AS status
+      FROM purchases p
+      JOIN events e ON p.event_id = e.id
+      WHERE p.user_id = ?
+
+      UNION ALL
+
+      SELECT 
+        c.id,
+        c.event_id,
+        e.title AS event_name,
+        e.start AS event_date,
+        e.venue,
+        c.ticket_type,
+        c.quantity,
+        c.total_price,
+        c.payment_method,
+        c.cancelled_at AS created_at,
+        'cancelled' AS status
+      FROM cancelled_tickets c
+      JOIN events e ON c.event_id = e.id
+      WHERE c.user_id = ?
+    ) AS all_regs
+    INNER JOIN (
+      SELECT event_id, MAX(created_at) AS max_created
+      FROM (
+        SELECT event_id, created_at FROM purchases WHERE user_id = ?
+        UNION ALL
+        SELECT event_id, cancelled_at AS created_at FROM cancelled_tickets WHERE user_id = ?
+      ) t
+      GROUP BY event_id
+    ) latest ON all_regs.event_id = latest.event_id AND all_regs.created_at = latest.max_created
+    ORDER BY all_regs.created_at DESC
   `;
-  db.query(query, [userId], (err, results) => {
+  db.query(query, [userId, userId, userId, userId], (err, results) => {
     if (err) {
-      console.error('Error fetching registrations:', err.message);
-      return res.status(500).json({ error: 'Failed to fetch registrations' });
+      console.error('Error fetching purchases:', err);
+      return res.status(500).json({ error: 'Failed to fetch purchases' });
     }
     res.json(results);
   });
@@ -779,7 +1018,7 @@ app.get('/category/:categoryId', (req, res) => {
   db.query(query, [categoryId], (err, results) => {
     if (err) {
       console.error('Error fetching category:', err.message);
-      return res.status(500).json({ error: 'Failed to fetch category details' });
+      return res.status(500).json({ error: 'Failed to fetch category' });
     }
     if (results.length === 0) {
       return res.status(404).json({ error: 'Category not found' });
@@ -806,32 +1045,37 @@ app.get('/sessions', (req, res) => {
 
 // POST a new session
 app.post('/sessions', (req, res) => {
-  console.log('POST /sessions body:', req.body);
-  // Expect these fields from the client: title, description, capacity, start_time, end_time, event_id
   const { title, description, capacity, start_time, end_time, event_id } = req.body;
   const query = 'INSERT INTO sessions (title, description, capacity, start_time, end_time, event_id) VALUES (?, ?, ?, ?, ?, ?)';
-  db.query(query, [title, description, capacity, start_time, end_time, event_id], (err, result) => {
-    if (err) {
-      console.error('Error inserting session:', err.message);
-      return res.status(500).json({ error: 'Failed to create session' });
+  db.query(
+    query,
+    [title, description, capacity, safeDate(start_time), safeDate(end_time), event_id],
+    (err, result) => {
+      if (err) {
+        console.error('Error inserting session:', err.message);
+        return res.status(500).json({ error: 'Failed to create session' });
+      }
+      res.json({ id: result.insertId, title, description, capacity, start_time, end_time, event_id });
     }
-    res.json({ id: result.insertId, title, description, capacity, start_time, end_time, event_id });
-  });
+  );
 });
 
 // PUT (update) a session
 app.put('/sessions/:id', (req, res) => {
   const { id } = req.params;
-  // Expect these fields from the client: title, description, capacity, start_time, end_time, event_id
   const { title, description, capacity, start_time, end_time, event_id } = req.body;
   const query = 'UPDATE sessions SET title=?, description=?, capacity=?, start_time=?, end_time=?, event_id=? WHERE id=?';
-  db.query(query, [title, description, capacity, start_time, end_time, event_id, id], (err, result) => {
-    if (err) {
-      console.error('Error updating session:', err.message);
-      return res.status(500).json({ error: 'Failed to update session' });
+  db.query(
+    query,
+    [title, description, capacity, safeDate(start_time), safeDate(end_time), event_id, id],
+    (err, result) => {
+      if (err) {
+        console.error('Error updating session:', err.message);
+        return res.status(500).json({ error: 'Failed to update session' });
+      }
+      res.json({ message: 'Session updated successfully' });
     }
-    res.json({ message: 'Session updated successfully' });
-  });
+  );
 });
 
 // DELETE a session
@@ -850,6 +1094,413 @@ app.delete('/sessions/:id', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+// Get ticket prices for a specific event
+app.get('/events/:id/ticket-prices', (req, res) => {
+  const { id } = req.params;
+  const query = `
+    SELECT price_standard, price_vip, price_premium
+    FROM events
+    WHERE id = ?
+  `;
+  db.query(query, [id], (err, results) => {
+    if (err) {
+      console.error('Error fetching ticket prices:', err);
+      return res.status(500).json({ error: 'Failed to fetch ticket prices' });
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    res.json(results[0]);
+  });
+});
+
+app.get('/events/:id/tickets', (req, res) => {
+  const { id } = req.params;
+  const query = `
+    SELECT * FROM tickets WHERE event_id = ?
+  `;
+  db.query(query, [id], (err, results) => {
+    if (err) {
+      console.error('Error fetching tickets:', err);
+      return res.status(500).json({ error: 'Failed to fetch tickets' });
+    }
+    res.json(results);
+  });
+});
+
+// Listen for client connections
+io.on('connection', (socket) => {
+  console.log('A user connected:', socket.id);
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+});
+
+// --- Example: Emit notification when a new category is added ---
+app.post('/categories', authenticateToken, (req, res) => {
+  let { name, slug, description, icon, color, status, metaTitle, metaDescription } = req.body;
+  slug = slug && slug.trim() ? generateSlug(slug) : generateSlug(name);
+  if (!slug) return res.status(400).json({ error: 'Category name or slug required.' });
+
+  const checkSlugQuery = 'SELECT id FROM categories WHERE slug = ?';
+  db.query(checkSlugQuery, [slug], (err, results) => {
+    if (err) {
+      console.error('Error checking slug uniqueness:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (results.length > 0) {
+      return res.status(400).json({ error: 'Slug already exists for another category.' });
+    }
+    const insertQuery = `
+      INSERT INTO categories (name, slug, description, icon, color, status, metaTitle, metaDescription)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    db.query(insertQuery, [name, slug, description, icon, color, status, metaTitle, metaDescription], (err, result) => {
+      if (err) {
+        console.error('Error creating category:', err);
+        return res.status(500).json({ error: 'Failed to create category' });
+      }
+      // Emit notification to all users
+      io.emit('notification', {
+        type: 'category',
+        message: `New category "${name}" added!`
+      });
+      res.json({ message: 'Category created', categoryId: result.insertId });
+    });
+  });
+});
+
+// --- Example: Emit notification when a new event is added ---
+app.post('/create-event', authenticateToken, (req, res) => {
+  const {
+    title,
+    description,
+    start,
+    end,
+    location,
+    venue,
+    capacity,
+    price_standard,
+    price_vip,
+    price_premium,
+    category_id,
+    image
+  } = req.body;
+  const organizer = req.user.id;
+  const query = `
+    INSERT INTO events (
+      title, description, organizer, start, end, location, venue, capacity, price_standard, price_vip, price_premium, status, category_id, image
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Published', ?, ?)
+  `;
+  db.query(
+    query,
+    [
+      title,
+      description,
+      organizer,
+      safeDate(start),
+      safeDate(end),
+      location,
+      venue,
+      capacity,
+      price_standard,
+      price_vip,
+      price_premium,
+      category_id,
+      image || null
+    ],
+    (err, result) => {
+      if (err) {
+        console.error('Error inserting event:', err);
+        return res.status(500).json({ error: 'Failed to create event', details: err.message });
+      }
+      // Emit notification to all users
+      io.emit('notification', {
+        type: 'event',
+        message: `New event "${title}" added! Register now!`
+      });
+      res.json({ message: 'Event created successfully', eventId: result.insertId });
+    }
+  );
+});
+
+// --- Example: Emit notification for upcoming events (you can schedule this with setInterval or a cron job) ---
+setInterval(() => {
+  const now = new Date();
+  const soon = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
+  const query = 'SELECT * FROM events WHERE start BETWEEN ? AND ?';
+  db.query(query, [now, soon], (err, results) => {
+    if (!err && results.length > 0) {
+      results.forEach(event => {
+        io.emit('notification', {
+          type: 'upcoming',
+          message: `Upcoming event: "${event.title}" starts soon! Register now!`
+        });
+      });
+    }
+  });
+}, 10 * 60 * 1000); // Check every 10 minutes
+
+// --- Add this route for testing (anywhere after your other routes) ---
+app.get('/test-notification', (req, res) => {
+  io.emit('notification', {
+    type: 'test',
+    message: 'This is a test notification!'
+  });
+  res.json({ message: 'Notification sent!' });
+});
+
+// --- Use server.listen instead of app.listen ---
+server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+});
+
+// --- RBAC Middleware (already present) ---
+function authorizeRoles(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user || !allowedRoles.includes(req.user.user_type)) {
+      return res.status(403).json({ error: 'Forbidden: insufficient permissions' });
+    }
+    next();
+  };
+}
+
+// RBAC: Only allow admin users
+function rbacAdmin(req, res, next) {
+  if (req.user && req.user.user_type === 'admin') {
+    next();
+  } else {
+    return res.status(403).json({ error: 'Forbidden: Admins only' });
+  }
+}
+
+// --- ADMIN ROUTES ---
+// Only admin can view/manage all users
+app.get('/users', authenticateToken, authorizeRoles('admin'), (req, res) => {
+  db.query('SELECT * FROM users', (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch users' });
+    res.json(results);
+  });
+});
+
+// Only admin can delete any user
+app.delete('/users/:id', authenticateToken, authorizeRoles('admin'), (req, res) => {
+  db.query('DELETE FROM users WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'Failed to delete user' });
+    res.json({ message: 'User deleted' });
+  });
+});
+
+// Only admin can view all events (organizers can only see their own)
+app.get('/admin/events', authenticateToken, authorizeRoles('admin'), (req, res) => {
+  db.query('SELECT * FROM events', (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch events' });
+    res.json(results);
+  });
+});
+
+// --- ORGANIZER ROUTES ---
+// Organizer can create events
+app.post('/events', authenticateToken, authorizeRoles('organizer', 'admin'), (req, res) => {
+  // ...your create event logic...
+});
+
+// Organizer can view only their events
+app.get('/organizer/events', authenticateToken, authorizeRoles('organizer'), (req, res) => {
+  db.query('SELECT * FROM events WHERE organizer = ?', [req.user.id], (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch events' });
+    res.json(results);
+  });
+});
+
+// Organizer can update/delete only their events
+app.put('/events/:id', authenticateToken, authorizeRoles('organizer', 'admin'), (req, res) => {
+  db.query('SELECT * FROM events WHERE id = ?', [req.params.id], (err, results) => {
+    if (err || results.length === 0) return res.status(404).json({ error: 'Event not found' });
+    if (req.user.user_type !== 'admin' && results[0].organizer !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden: not your event' });
+    }
+    // ...update logic...
+  });
+});
+app.delete('/events/:id', authenticateToken, authorizeRoles('organizer', 'admin'), (req, res) => {
+  db.query('SELECT * FROM events WHERE id = ?', [req.params.id], (err, results) => {
+    if (err || results.length === 0) return res.status(404).json({ error: 'Event not found' });
+    if (req.user.user_type !== 'admin' && results[0].organizer !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden: not your event' });
+    }
+    db.query('DELETE FROM events WHERE id = ?', [req.params.id], (err) => {
+      if (err) return res.status(500).json({ error: 'Failed to delete event' });
+      res.json({ message: 'Event deleted' });
+    });
+  });
+});
+
+// --- SPEAKER ROUTES ---
+app.get('/speaker/sessions', authenticateToken, authorizeRoles('speaker'), (req, res) => {
+  db.query('SELECT * FROM sessions WHERE speaker_id = ?', [req.user.id], (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch sessions' });
+    res.json(results);
+  });
+});
+app.post('/sessions/:id/materials', authenticateToken, authorizeRoles('speaker'), (req, res) => {
+  db.query('SELECT * FROM sessions WHERE id = ? AND speaker_id = ?', [req.params.id, req.user.id], (err, results) => {
+    if (err || results.length === 0) return res.status(403).json({ error: 'Forbidden: not your session' });
+    // ...upload logic...
+    res.json({ message: 'Material uploaded' });
+  });
+});
+
+// --- VENDOR ROUTES ---
+app.get('/vendor/booths', authenticateToken, authorizeRoles('vendor'), (req, res) => {
+  db.query('SELECT * FROM booths WHERE vendor_id = ?', [req.user.id], (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch booths' });
+    res.json(results);
+  });
+});
+app.post('/vendor/booths', authenticateToken, authorizeRoles('vendor'), (req, res) => {
+  // ...add booth logic...
+});
+
+// --- ATTENDEE ROUTES ---
+app.get('/events', authenticateToken, authorizeRoles('attendee', 'organizer', 'admin', 'speaker', 'vendor'), (req, res) => {
+  db.query('SELECT * FROM events WHERE status = "Published"', (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch events' });
+    res.json(results);
+  });
+});
+app.post('/register', authenticateToken, authorizeRoles('attendee'), (req, res) => {
+  // ...registration logic...
+});
+app.get('/my-registrations', authenticateToken, authorizeRoles('attendee', 'user', 'speaker', 'vendor'), (req, res) => {
+  // ...your existing logic...
+});
+
+// ========================
+// Permissions Endpoint
+// ========================
+
+/**
+ * Get allowed pages and actions for the logged-in user
+ * Returns: { role, pages: [{ page, actions: [...] }] }
+ */
+app.get('/my-permissions', authenticateToken, (req, res) => {
+  const role = req.user.user_type;
+  // Define permissions for each role
+  const permissions = {
+    admin: [
+      { page: 'admin-dashboard.html', actions: ['view', 'manage'] },
+      { page: 'create_event.html', actions: ['create'] },
+      { page: 'create_category.html', actions: ['create'] },
+      { page: 'category-edit.html', actions: ['edit', 'delete'] },
+      { page: 'event.html', actions: ['view'] },
+      { page: 'eventcategory.html', actions: ['manage'] },
+      { page: 'analytics.html', actions: ['view'] },
+      { page: 'mytickets.html', actions: ['view', 'test'] },
+      { page: 'myregistration.html', actions: ['view', 'test'] },
+      { page: 'notifications.html', actions: ['send'] },
+      { page: 'ticket.html', actions: ['view', 'manage'] },
+      { page: 'registration.html', actions: ['view', 'manage'] },
+      { page: 'profile.html', actions: ['edit'] },
+      { page: 'setting.html', actions: ['manage'] },
+      { page: 'session.html', actions: ['view'] },
+      { page: 'features.html', actions: ['view', 'manage'] },
+      { page: 'login.html', actions: ['login'] },
+      { page: 'signup.html', actions: ['signup'] },
+      { page: 'forgot-password.html', actions: ['recover'] }
+    ],
+    attendee: [
+      { page: 'attendee-dashboard.html', actions: ['view'] },
+      { page: 'event.html', actions: ['view', 'explore'] },
+      { page: 'registration.html', actions: ['register'] },
+      { page: 'ticket.html', actions: ['purchase', 'view'] },
+      { page: 'mytickets.html', actions: ['view'] },
+      { page: 'myregistration.html', actions: ['view'] },
+      { page: 'notifications.html', actions: ['receive'] },
+      { page: 'profile.html', actions: ['edit'] },
+      { page: 'login.html', actions: ['login'] },
+      { page: 'signup.html', actions: ['signup'] },
+      { page: 'forgot-password.html', actions: ['recover'] }
+    ],
+    organizer: [
+      { page: 'organizer-dashboard.html', actions: ['overview'] },
+      { page: 'create_event.html', actions: ['create'] },
+      { page: 'event.html', actions: ['view', 'manage'] },
+      { page: 'eventcategory.html', actions: ['choose'] },
+      { page: 'category-edit.html', actions: ['edit'] },
+      { page: 'notifications.html', actions: ['send'] },
+      { page: 'session.html', actions: ['manage'] },
+      { page: 'profile.html', actions: ['edit'] }
+    ],
+    speaker: [
+      { page: 'session.html', actions: ['view', 'manage'] },
+      { page: 'notifications.html', actions: ['receive'] },
+      { page: 'profile.html', actions: ['edit'] }
+    ],
+    vendor: [
+      { page: 'vendor-dashboard.html', actions: ['view', 'manage'] },
+      { page: 'notifications.html', actions: ['receive'] },
+      { page: 'profile.html', actions: ['edit'] }
+    ]
+  };
+
+  // Map "user" to "attendee" if needed
+  const effectiveRole = role === 'user' ? 'attendee' : role;
+  res.json({
+    role: effectiveRole,
+    pages: permissions[effectiveRole] || []
+  });
+});
+
+// --- FRONTEND ---
+// After login, redirect user to their dashboard based on user_type
+// Example (pseudo-code for frontend):
+/*
+if (user_type === 'admin') window.location.href = '/admin-dashboard.html';
+if (user_type === 'organizer') window.location.href = '/organizer-dashboard.html';
+if (user_type === 'speaker') window.location.href = '/speaker-dashboard.html';
+if (user_type === 'vendor') window.location.href = '/vendor-dashboard.html';
+if (user_type === 'attendee') window.location.href = '/attendee-dashboard.html';
+*/
+
+// Middleware to check for admin role
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only admins can perform this action.' });
+  }
+  next();
+}
+
+// Edit session (PUT)
+app.put('/sessions/:id', authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const { title, description, capacity, start_time, end_time, event_id } = req.body;
+  const query = 'UPDATE sessions SET title=?, description=?, capacity=?, start_time=?, end_time=?, event_id=? WHERE id=?';
+  db.query(
+    query,
+    [title, description, capacity, safeDate(start_time), safeDate(end_time), event_id, id],
+    (err, result) => {
+      if (err) {
+        console.error('Error updating session:', err.message);
+        return res.status(500).json({ error: 'Failed to update session' });
+      }
+      res.json({ message: 'Session updated successfully' });
+    }
+  );
+});
+
+// Delete session (DELETE)
+app.delete('/sessions/:id', authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const query = 'DELETE FROM sessions WHERE id=?';
+  db.query(query, [id], (err, result) => {
+    if (err) {
+      console.error('Error deleting session:', err.message);
+      return res.status(500).json({ error: 'Failed to delete session' });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    res.json({ message: 'Session deleted successfully' });
+  });
 });

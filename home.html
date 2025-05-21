@@ -417,13 +417,19 @@
           <i class="fas fa-calendar-alt" aria-hidden="true"></i>
           <span>EventSphere</span>
         </div>
-        <div class="auth-buttons">
+        <div class="auth-buttons" id="authButtons">
           <a href="login.html" class="btn btn-outline" style="margin-right: 10px; text-decoration: none;" role="link" aria-label="Login">
             <i class="fas fa-sign-in-alt" aria-hidden="true"></i> Login
           </a>
           <a href="signup.html" class="btn btn-primary" style="text-decoration: none;" role="link" aria-label="Register">
             <i class="fas fa-user-plus" aria-hidden="true"></i> Register
           </a>
+        </div>
+        <div class="auth-buttons" id="userButtons" style="display:none;">
+          <span id="welcomeUser" style="margin-right: 15px; color: var(--accent); font-weight: 500;"></span>
+          <button class="btn btn-outline" id="logoutBtn" aria-label="Logout">
+            <i class="fas fa-sign-out-alt" aria-hidden="true"></i> Logout
+          </button>
         </div>
       </header>
 
@@ -452,9 +458,10 @@
       <p><em>Where innovation meets celebration — redefining events for the digital age.</em></p>
       
       <div class="cta-buttons">
-        <button class="btn btn-primary" id="exploreFeaturesBtn" aria-label="Explore Features">
-          <i class="fas fa-rocket" aria-hidden="true"></i><a href="features.html"> Explore Features</a>
-        </button>
+
+        <a href="features.html" class="btn btn-primary" id="exploreFeaturesBtn" aria-label="Explore Features">
+          <i class="fas fa-rocket" aria-hidden="true"></i> Explore Features
+        </a>
         <button class="btn btn-outline" id="watchDemoBtn" aria-label="Watch Demo">
           <i class="fas fa-play-circle" aria-hidden="true"></i> Watch Demo
         </button>
@@ -506,34 +513,34 @@
       loadingSpinner.style.display = 'block';
 
       const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('user_type');
+      const userName = localStorage.getItem('user_name');
+      const authButtons = document.getElementById('authButtons');
+      const userButtons = document.getElementById('userButtons');
+      const welcomeUser = document.getElementById('welcomeUser');
+      const logoutBtn = document.getElementById('logoutBtn');
 
-      if (!token) {
-        loadingSpinner.style.display = 'none';
-        alert('You are not logged in. Redirecting to login...');
-        window.location.href = 'login.html';
-        return;
+      // Show/hide auth/user buttons
+      if (token) {
+        if (authButtons) authButtons.style.display = 'none';
+        if (userButtons) userButtons.style.display = 'flex';
+        if (welcomeUser) welcomeUser.textContent = userName ? `Welcome, ${userName}` : 'Welcome!';
+      } else {
+        if (authButtons) authButtons.style.display = 'flex';
+        if (userButtons) userButtons.style.display = 'none';
       }
 
-      try {
-        const response = await fetch('/home', {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`, // Include the token in the Authorization header
-          },
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', function () {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user_type');
+          localStorage.removeItem('user_name');
+          window.location.href = 'login.html';
         });
-
-        if (!response.ok) {
-          throw new Error('Unauthorized access');
-        }
-
-        // Load home page content
-        console.log('Home page content loaded successfully');
-      } catch (error) {
-        alert(error.message);
-        window.location.href = 'login.html';
-      } finally {
-        loadingSpinner.style.display = 'none';
       }
+
+      // --- Make home.html public: remove auth fetch and redirect ---
+      loadingSpinner.style.display = 'none';
     });
   </script>
 </body>

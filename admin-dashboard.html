@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Welcome, Admin!</h1>
+  <nav>
+    <a href="/users.html">Manage Users</a> |
+    <a href="/admin-events.html">Manage All Events</a> |
+    <a href="/analytics.html">View Analytics</a>
+  </nav>
+  <div id="admin-content"></div>
+  <script>
+    // Redirect if not admin
+    if (localStorage.getItem('user_type') !== 'admin') {
+      window.location.href = '/login.html';
+    }
+    // Load admin content here (AJAX/fetch as needed)
+  </script>
+  <script>
+  fetch('/my-permissions', {
+    headers: {
+      'Authorization': 'Bearer ' + localStorage.getItem('token')
+    }
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.role !== 'admin') {
+      // Not an admin, redirect to their dashboard
+      if (data.role === 'organizer') window.location.href = '/organizer-dashboard.html';
+      else if (data.role === 'attendee') window.location.href = '/attendee-dashboard.html';
+      else if (data.role === 'vendor') window.location.href = '/vendor-dashboard.html';
+      else if (data.role === 'speaker') window.location.href = '/session.html';
+      else window.location.href = '/login.html';
+      return;
+    }
+
+    // Example: Show/hide features based on allowed actions
+    // (You can expand this as needed for your UI)
+    const pages = data.pages.map(p => p.page);
+    if (!pages.includes('analytics.html')) {
+      document.querySelector('a[href="/analytics.html"]').style.display = 'none';
+    }
+    if (!pages.includes('users.html')) {
+      document.querySelector('a[href="/users.html"]').style.display = 'none';
+    }
+    // ...repeat for other links/features as needed
+
+    // You can also use the 'actions' array for each page to enable/disable buttons
+    // Example:
+    // const analyticsPage = data.pages.find(p => p.page === 'analytics.html');
+    // if (analyticsPage && !analyticsPage.actions.includes('view')) {
+    //   document.querySelector('a[href="/analytics.html"]').style.display = 'none';
+    // }
+  })
+  .catch(() => {
+    // If not authenticated, redirect to login
+    window.location.href = '/login.html';
+  });
+  </script>
+</body>
+</html>

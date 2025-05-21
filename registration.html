@@ -566,6 +566,7 @@
     <a href="index.html" class="logo">
       <i class="fas fa-calendar-alt"></i> EventSphere
     </a>
+    <div id="user-rbac" style="margin-left:20px;"></div>
   </header>
   
   <div class="container">
@@ -596,9 +597,6 @@
           <label for="ticketType">Ticket Type</label>
           <select id="ticketType" required>
             <option value="">Select Ticket</option>
-            <option value="standard">Standard - $25.00</option>
-            <option value="vip">VIP - $50.00</option>
-            <option value="premium">Premium - $75.00</option>
           </select>
         </div>
         <div class="form-group">
@@ -652,8 +650,41 @@
   </footer>
   
   <script>
+    
+    // RBAC: Show user info and restrict access based on user_type
+    document.addEventListener('DOMContentLoaded', function() {
+      const userName = localStorage.getItem('user_name');
+      const userType = localStorage.getItem('user_type');
+      const userRBAC = document.getElementById('user-rbac');
+      if (userRBAC) {
+        if (userName) {
+          userRBAC.innerHTML = `<span style="color:var(--primary);font-weight:bold;">Welcome, ${userName}</span>
+            <span style="color:var(--gray);font-size:13px;margin-left:8px;">(${userType || 'user'})</span>
+            <button id="logoutBtn" style="margin-left:15px;padding:4px 12px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;">Logout</button>`;
+        } else {
+          userRBAC.innerHTML = `<a href="login.html" class="btn btn-primary" style="padding:6px 18px;">Login</a>`;
+        }
+      }
+      // Logout logic
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        logoutBtn.onclick = () => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user_type');
+          localStorage.removeItem('user_name');
+          window.location.href = 'login.html';
+        };
+      }
+      // RBAC: Only allow "user"/"attendee" or "admin" to access registration
+      if (!userType || !['user', 'attendee', 'admin'].includes(userType)) {
+        alert('You do not have permission to access this page.');
+        window.location.href = 'home.html';
+      }
+    });
+
     let currentEvent = null;
     let sampleRegistrations = [];
+    let registeredEventIds = [];
 
     // Render registrations fetched from backend
     function renderRegistrations(registrations) {
@@ -731,21 +762,59 @@
       }
     }
 
-    const registerForm = document.getElementById('registerForm');
-    const registrationForm = document.getElementById('registrationForm');
-    const confirmationMessage = document.getElementById('confirmationMessage');
-    const confirmationDetails = document.getElementById('confirmationDetails');
-    const cancelRegistrationBtn = document.getElementById('cancelRegistration');
+    async function fetchRegisteredEventIds() {
+      const token = localStorage.getItem('token');
+      if (!token) return [];
+      const res = await fetch('/my-registrations', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      const registrations = await res.json();
+      return registrations.map(r => r.event_id);
+    }
 
-    // Remove fetchEvents() fallback; instead rely on the selected event from localStorage
+    // Call this in your initRegistrationPage
     async function initRegistrationPage() {
+      registeredEventIds = await fetchRegisteredEventIds();
+
       const selectedEvent = localStorage.getItem('selectedEvent');
       if (selectedEvent) {
         const eventObj = JSON.parse(selectedEvent);
         currentEvent = eventObj;
         document.getElementById('eventNameTitle').textContent = eventObj.title;
         document.getElementById('eventId').value = eventObj.id;
-        // Optionally, display other event info here.
+        // Dynamically populate ticket types
+        const ticketTypeSelect = document.getElementById('ticketType');
+        ticketTypeSelect.innerHTML = '<option value="">Select Ticket</option>';
+        if (eventObj.price_standard) {
+          ticketTypeSelect.innerHTML += <option value="standard">Standard - $${eventObj.price_standard.toFixed(2)}</option>;
+        }
+        if (eventObj.price_vip) {
+          ticketTypeSelect.innerHTML += <option value="vip">VIP - $${eventObj.price_vip.toFixed(2)}</option>;
+        }
+        if (eventObj.price_premium) {
+          ticketTypeSelect.innerHTML += <option value="premium">Premium - $${eventObj.price_premium.toFixed(2)}</option>;
+        }
+        if (!eventObj.price_standard && !eventObj.price_vip && !eventObj.price_premium) {
+          ticketTypeSelect.innerHTML += '<option value="free">Free Admission</option>';
+        }
+
+        // --- LOCK REGISTRATION FORM IF ALREADY REGISTERED ---
+        if (registeredEventIds.includes(eventObj.id)) {
+          document.getElementById('registerForm').style.display = 'none';
+          const lockMsg = document.createElement('div');
+          lockMsg.className = 'empty-state';
+          lockMsg.innerHTML = `
+            <i class="fas fa-lock"></i>
+            <h3>You have already registered for this event.</h3>
+            <p>Registration is locked for this event.</p>
+            <a href="myregistration.html" class="btn btn-primary" style="margin-top: 20px;">
+              <i class="fas fa-ticket-alt"></i> View My Registrations
+            </a>
+          `;
+          document.getElementById('registrationForm').appendChild(lockMsg);
+        }
+        // -----------------------------------------------------
       } else {
         alert('No event selected for registration. Please select an event first.');
         window.location.href = 'event.html';
@@ -778,20 +847,42 @@
           const eventCard = document.createElement('div');
           eventCard.className = 'registration-card';
           eventCard.style.cursor = 'pointer';
+
+          const alreadyRegistered = registeredEventIds.includes(event.id);
+
           eventCard.innerHTML = `
             <h3 class="registration-title"><i class="fas fa-calendar-day"></i> ${event.title}</h3>
             <p><i class="fas fa-calendar-alt"></i> <strong>Date:</strong> ${new Date(event.start).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
             <p><i class="fas fa-map-marker-alt"></i> <strong>Venue:</strong> ${event.venue || 'N/A'}</p>
+            ${alreadyRegistered ? '<div style="color:#f72585;font-weight:bold;">Already Registered</div>' : ''}
           `;
-          eventCard.addEventListener('click', () => {
-            currentEvent = event;
-            document.getElementById('eventNameTitle').textContent = event.title;
-            document.getElementById('eventId').value = event.id;
-            // Clear form fields on event change
-            registerForm.reset();
-            // Scroll to registration form
-            registrationForm.scrollIntoView({ behavior: 'smooth' });
-          });
+          if (!alreadyRegistered) {
+            eventCard.addEventListener('click', () => {
+              currentEvent = event;
+              document.getElementById('eventNameTitle').textContent = event.title;
+              document.getElementById('eventId').value = event.id;
+              registerForm.reset();
+              // Dynamically populate ticket types
+              const ticketTypeSelect = document.getElementById('ticketType');
+              ticketTypeSelect.innerHTML = '<option value="">Select Ticket</option>';
+              if (event.price_standard) {
+                ticketTypeSelect.innerHTML += <option value="standard">Standard - $${event.price_standard.toFixed(2)}</option>;
+              }
+              if (event.price_vip) {
+                ticketTypeSelect.innerHTML += <option value="vip">VIP - $${event.price_vip.toFixed(2)}</option>;
+              }
+              if (event.price_premium) {
+                ticketTypeSelect.innerHTML += <option value="premium">Premium - $${event.price_premium.toFixed(2)}</option>;
+              }
+              if (!event.price_standard && !event.price_vip && !event.price_premium) {
+                ticketTypeSelect.innerHTML += '<option value="free">Free Admission</option>';
+              }
+              registrationForm.scrollIntoView({ behavior: 'smooth' });
+            });
+          } else {
+            eventCard.style.opacity = 0.5;
+            eventCard.style.pointerEvents = 'none';
+          }
           upcomingEventsDiv.appendChild(eventCard);
         });
       } catch (error) {
@@ -800,12 +891,16 @@
       }
     }
 
+    const registerForm = document.getElementById('registerForm');
+    const registrationForm = document.getElementById('registrationForm');
+    const confirmationMessage = document.getElementById('confirmationMessage');
+    const confirmationDetails = document.getElementById('confirmationDetails');
+    const cancelRegistrationBtn = document.getElementById('cancelRegistration');
+
     registerForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      // Use the loaded currentEvent from localStorage or selected event
-      if (!currentEvent) {
-        alert('No event selected for registration.');
+      if (registeredEventIds.includes(currentEvent.id)) {
+        alert('You have already registered for this event.');
         return;
       }
       
@@ -823,25 +918,25 @@
       const submitBtn = registerForm.querySelector('button[type="submit"]');
       const originalBtnText = submitBtn.innerHTML;
       submitBtn.disabled = true;
-      submitBtn.innerHTML = `<i class="fas fa-spinner spinner"></i> Processing...`;
+      submitBtn.innerHTML = '<i class="fas fa-spinner spinner"></i> Processing...';
 
       const nameParts = fullName.split(' ');
       const first_name = nameParts[0];
       const last_name = nameParts.slice(1).join(' ') || '';
       
       const registrationData = {
-        first_name: first_name,
-        last_name: last_name,
+        eventId: currentEvent.id,
+        firstName: first_name,
+        lastName: last_name,
         email: email,
         phone: phone,
-        event_id: currentEvent.id,
-        ticket_type: ticketType,
+        ticketType: ticketType,
         quantity: quantity,
-        status: 'Registered'
+        specialRequests: "", // or add a field for this
       };
 
       try {
-        const res = await fetch('/attendees', {
+        const res = await fetch('/register', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -882,6 +977,8 @@
     document.addEventListener('DOMContentLoaded', async () => {
       await initRegistrationPage();
     });
+
+    
   </script>
 </body>
 </html>

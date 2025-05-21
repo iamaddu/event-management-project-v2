@@ -630,6 +630,7 @@
   <!-- Header Section -->
   <header>
     <h1>EventSphere</h1>
+    <div id="user-rbac" style="margin-top:10px;"></div>
   </header>
 
   <!-- Navigation Menu -->
@@ -771,20 +772,51 @@
   </footer>
 
   <script>
-    function authFetch(url, options = {}) {
-      const token = localStorage.getItem('token');
-      if (!token) {
-          alert('Session expired or not logged in. Please log in again.');
-          window.location.href = 'login.html';
-          return Promise.reject(new Error('No token found'));
-      }
-      options.headers = options.headers || {};
-      options.headers['Authorization'] = `Bearer ${token}`;
-      return fetch(url, options);
-    }
+function authFetch(url, options = {}) {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    alert('Session expired or not logged in. Please log in again.');
+    window.location.href = 'login.html';
+    return Promise.reject(new Error('No token found'));
+  }
+  options.headers = options.headers || {};
+  options.headers['Authorization'] = `Bearer ${token}`;
+  return fetch(url, options);
+}
 
-    // Fetch events and populate the dropdown
-    const eventSelect = document.getElementById('event-select');
+// RBAC: Show user info and restrict access based on user_type
+(function rbacTicketPage() {
+  const userName = localStorage.getItem('user_name');
+  const userType = localStorage.getItem('user_type');
+  const userRBAC = document.getElementById('user-rbac');
+  if (userRBAC) {
+    if (userName) {
+      userRBAC.innerHTML = `<span style="color:var(--primary);font-weight:bold;">Welcome, ${userName}</span>
+        <span style="color:var(--gray);font-size:13px;margin-left:8px;">(${userType || 'user'})</span>
+        <button id="logoutBtn" style="margin-left:15px;padding:4px 12px;border-radius:6px;border:none;background:var(--error);color:#fff;cursor:pointer;">Logout</button>`;
+    } else {
+      userRBAC.innerHTML = `<a href="login.html" class="btn btn-primary" style="padding:6px 18px;">Login</a>`;
+    }
+  }
+  // Logout logic
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.onclick = () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user_type');
+      localStorage.removeItem('user_name');
+      window.location.href = 'login.html';
+    };
+  }
+  // RBAC: Only allow "attendee" or "admin" to purchase tickets, else redirect
+  if (!userType || (userType !== 'attendee' && userType !== 'admin')) {
+    alert('You do not have permission to purchase tickets.');
+    window.location.href = 'home.html';
+  }
+})();
+
+// Elements
+const eventSelect = document.getElementById('event-select');
 const ticketTypeSelect = document.getElementById('ticket-type');
 const ticketQuantitySelect = document.getElementById('ticket-quantity');
 const priceValueElements = document.querySelectorAll('.price-item .value');
@@ -792,94 +824,98 @@ const totalPriceElement = document.querySelector('.total-price .value');
 const ticketVisualPrice = document.querySelector('.ticket-visual .price');
 const ticketVisualType = document.querySelector('.ticket-visual .ticket-type');
 
+// Store prices for the selected event
+let currentPrices = {
+  general: 0,
+  vip: 0,
+  student: 75, // Fixed price for student tickets
+  premium: 0
+};
+
 function updatePrices() {
-  const selectedOption = eventSelect.options[eventSelect.selectedIndex];
-  if (!selectedOption || !selectedOption.value) {
-    // No event selected, reset prices
-    priceValueElements.forEach(el => el.textContent = '$0.00');
-    totalPriceElement.textContent = '$0.00';
-    ticketVisualPrice.textContent = '$0.00';
-    return;
-  }
-
-  // Get prices from selected event option data attributes
-  const prices = {
-    general: parseFloat(selectedOption.dataset.priceStandard) || 0,
-    vip: parseFloat(selectedOption.dataset.priceVip) || 0,
-    student: 75, // Fixed price for student tickets
-    premium: parseFloat(selectedOption.dataset.pricePremium) || 0,
-  };
-
-  // Update individual price display
-  priceValueElements[0].textContent = `$${prices.general.toFixed(2)}`;
-  priceValueElements[1].textContent = `$${ticketQuantitySelect.value}`;
-  // Total price calculation
   const ticketType = ticketTypeSelect.value;
   const quantity = parseInt(ticketQuantitySelect.value) || 1;
-  const totalPrice = prices[ticketType] * quantity;
+  const price = currentPrices[ticketType] || 0;
+  const totalPrice = price * quantity;
 
+  // Update UI
+  priceValueElements[0].textContent = `$${price.toFixed(2)}`;
+  priceValueElements[1].textContent = `${quantity}`;
   totalPriceElement.textContent = `$${totalPrice.toFixed(2)}`;
   ticketVisualPrice.textContent = `$${totalPrice.toFixed(2)}`;
   ticketVisualType.textContent = ticketType.charAt(0).toUpperCase() + ticketType.slice(1).replace('_', ' ');
 }
 
-// Update prices when event, ticket type, or quantity changes
-eventSelect.addEventListener('change', updatePrices);
+// Fetch events and populate the dropdown
+fetch('/events')
+  .then((response) => response.json())
+  .then((events) => {
+    events.forEach((event) => {
+      const option = document.createElement('option');
+      option.value = event.id;
+      option.textContent = `${event.title} - ${event.start ? new Date(event.start).toLocaleString() : 'N/A'}`;
+      option.dataset.venue = event.venue;
+      eventSelect.appendChild(option);
+    });
+  })
+  .catch((error) => {
+    console.error('Error fetching events:', error);
+    alert('Failed to load events. Please try again later.');
+  });
+
+// When an event is selected, fetch its prices
+eventSelect.addEventListener('change', function () {
+  const selectedOption = this.options[this.selectedIndex];
+  if (!selectedOption.value) {
+    // Reset fields
+    document.getElementById('event-name').value = '';
+    document.getElementById('venue').value = '';
+    document.getElementById('date').value = '';
+    currentPrices = { general: 0, vip: 0, student: 75, premium: 0 };
+    updatePrices();
+    return;
+  }
+  // Set event details
+  document.getElementById('event-name').value = selectedOption.textContent.split(' - ')[0];
+  document.getElementById('venue').value = selectedOption.dataset.venue || '';
+  document.getElementById('date').value = selectedOption.textContent.split(' - ')[1];
+
+  // Fetch ticket prices for this event
+  fetch(`/events/${selectedOption.value}/ticket-prices`)
+    .then(res => res.json())
+    .then(prices => {
+      currentPrices = {
+        general: parseFloat(prices.price_standard) || 0,
+        vip: parseFloat(prices.price_vip) || 0,
+        student: 75,
+        premium: parseFloat(prices.price_premium) || 0
+      };
+      updatePrices();
+    })
+    .catch(() => {
+      currentPrices = { general: 0, vip: 0, student: 75, premium: 0 };
+      updatePrices();
+    });
+});
+
+// Update prices when ticket type or quantity changes
 ticketTypeSelect.addEventListener('change', updatePrices);
 ticketQuantitySelect.addEventListener('change', updatePrices);
 
 // Initial price update on page load
 window.addEventListener('DOMContentLoaded', updatePrices);
 
-    fetch('/events')
-      .then((response) => response.json())
-      .then((events) => {
-        const eventSelect = document.getElementById('event-select');
-        events.forEach((event) => {
-          const option = document.createElement('option');
-          option.value = event.id;
-          option.textContent = `${event.title} - ${event.start ? new Date(event.start).toLocaleString() : 'N/A'}`;
-          option.dataset.priceStandard = event.price_standard;
-          option.dataset.priceVip = event.price_vip;
-          option.dataset.pricePremium = event.price_premium;
-          option.dataset.location = event.location;
-          option.dataset.venue = event.venue;
-          eventSelect.appendChild(option);
-        });
-      })
-      .catch((error) => {
-        console.error('Error fetching events:', error);
-        alert('Failed to load events. Please try again later.');
-      });
-
-    // Update event details when an event is selected
-    document.getElementById('event-select').addEventListener('change', function () {
-      const selectedOption = this.options[this.selectedIndex];
-      if (selectedOption.value) {
-        document.getElementById('event-name').value = selectedOption.textContent.split(' - ')[0]; // Use title
-        document.getElementById('venue').value = selectedOption.dataset.venue;
-        document.getElementById('date').value = selectedOption.textContent.split(' - ')[1];
-      } else {
-        document.getElementById('event-name').value = '';
-        document.getElementById('venue').value = '';
-        document.getElementById('date').value = '';
-      }
-    });
-
-    document.getElementById('purchase-btn').addEventListener('click', function (e) {
+document.getElementById('purchase-btn').addEventListener('click', function (e) {
   e.preventDefault();
 
-  // Validate terms checkbox
   if (!document.getElementById('terms').checked) {
     alert('Please agree to the Terms & Conditions to proceed with your purchase.');
     return;
   }
 
-  // Collect purchase details
-  const eventSelect = document.getElementById('event-select');
   const event_id = eventSelect.value;
-  const ticket_type = document.getElementById('ticket-type').value;
-  const quantity = parseInt(document.getElementById('ticket-quantity').value);
+  const ticket_type = ticketTypeSelect.value;
+  const quantity = parseInt(ticketQuantitySelect.value);
   const payment_method = document.getElementById('payment-method').value;
 
   if (!event_id) {
@@ -887,16 +923,8 @@ window.addEventListener('DOMContentLoaded', updatePrices);
     return;
   }
 
-  const prices = {
-    general: parseFloat(eventSelect.options[eventSelect.selectedIndex].dataset.priceStandard),
-    vip: parseFloat(eventSelect.options[eventSelect.selectedIndex].dataset.priceVip),
-    student: 75, // Fixed price for student tickets
-    premium: parseFloat(eventSelect.options[eventSelect.selectedIndex].dataset.pricePremium),
-  };
+  const total_price = quantity * (currentPrices[ticket_type] || 0);
 
-  const total_price = quantity * prices[ticket_type];
-
-  // Send purchase details to the backend
   authFetch('/purchase-ticket', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -909,13 +937,10 @@ window.addEventListener('DOMContentLoaded', updatePrices);
       return response.json();
     })
     .then((data) => {
-      console.log('Purchase successful:', data);
-      // Show confirmation modal
       document.getElementById('modalEventName').textContent = eventSelect.options[eventSelect.selectedIndex].textContent.split(' - ')[0];
       document.getElementById('confirmationModal').classList.add('active');
     })
     .catch((error) => {
-      console.error('Error:', error.message);
       alert('Failed to complete purchase: ' + error.message);
     });
 });
@@ -925,30 +950,6 @@ document.getElementById('closeModal').addEventListener('click', function () {
   document.getElementById('confirmationModal').classList.remove('active');
   window.location.href = 'mytickets.html';
 });
-
-// Add event listener for all cancel buttons (assuming your ticket cards include them)
-document.querySelectorAll('.cancel-btn').forEach(button => {
-  button.addEventListener('click', async (e) => {
-    // Use currentTarget instead of target
-    const ticketId = e.currentTarget.getAttribute('data-ticket-id');
-    if (!ticketId) return;
-    if (!confirm('Are you sure you want to cancel this ticket?')) return;
-
-    try {
-      const res = await authFetch(`/tickets/${ticketId}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Ticket cancellation failed');
-      }
-      alert('Ticket cancelled successfully!');
-      // Optionally refresh the ticket list
-      fetchTickets();
-    } catch (error) {
-      alert(error.message);
-    }
-  });
-});
-
   </script>
 </body>
 </html>

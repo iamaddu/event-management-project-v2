@@ -611,6 +611,7 @@
         <a href="myregistration.html" class="active">My Registrations</a>
         <a href="profile.html">Profile</a>
       </div>
+      <div id="user-rbac" style="margin-left:20px;"></div>
     </div>
   </header>
 
@@ -955,38 +956,45 @@
     // Update statistics
     function updateStats(registrations) {
       const now = new Date();
-      
+
       // Total registrations
       totalRegistrations.textContent = registrations.length;
-      
+
       // Upcoming events: only confirmed events in the future
       const upcoming = registrations.filter(reg => {
         const eventDate = new Date(reg.event_date);
         return reg.status === 'confirmed' && eventDate > now;
       }).length;
       upcomingStats.textContent = upcoming;
-      
+
       // Total spent (exclude cancelled)
       const spent = registrations.reduce((sum, reg) => {
         return reg.status === 'cancelled' ? sum : sum + reg.total_price;
       }, 0);
-      totalSpent.textContent = `$${spent.toFixed(2)}`;
-      
-      // Favorite category: most registered (non-cancelled)
-      if (registrations.length > 0) {
-        const categoryCount = {};
-        registrations.forEach(reg => {
-          if (reg.status !== 'cancelled') {
-            categoryCount[reg.category] = (categoryCount[reg.category] || 0) + 1;
-          }
-        });
-        
-        const favorite = Object.entries(categoryCount).reduce((max, entry) => {
-          return entry[1] > max[1] ? entry : max;
-        }, ['', 0]);
-        
-        favoriteCategory.textContent = favorite[0] || '-';
+      totalSpent.textContent = '$' + spent.toFixed(2);
+
+      // Favorite category: most registered (non-cancelled, non-empty)
+      const categoryCount = {};
+      registrations.forEach(reg => {
+        if (
+          reg.status !== 'cancelled' &&
+          reg.category &&
+          typeof reg.category === 'string' &&
+          reg.category.trim() !== ''
+        ) {
+          categoryCount[reg.category] = (categoryCount[reg.category] || 0) + 1;
+        }
+      });
+
+      let favorite = '-';
+      let maxCount = 0;
+      for (const [cat, count] of Object.entries(categoryCount)) {
+        if (count > maxCount) {
+          favorite = cat;
+          maxCount = count;
+        }
       }
+      favoriteCategory.textContent = favorite;
     }
 
     // Helper functions
@@ -1000,9 +1008,11 @@
         'standard': 'Standard',
         'vip': 'VIP',
         'premium': 'Premium',
-        'student': 'Student'
+        'student': 'Student',
+        'free': 'Free Admission'
       };
-      return labels[type] || type;
+      // Capitalize unknown types
+      return labels[type] || (type ? type.charAt(0).toUpperCase() + type.slice(1) : '-');
     }
 
     function formatDate(dateString, includeTime = false) {
@@ -1017,7 +1027,6 @@
 
     // Action functions
     function viewTicket(registrationId) {
-      // Implement the ticket viewing functionality as needed
       alert(`Viewing ticket for registration ${registrationId}`);
     }
 
@@ -1028,9 +1037,39 @@
     }
 
     function rebookEvent(eventId) {
-      // Redirect the user to the event page for rebooking.
       alert(`Redirecting to event ${eventId} for rebooking...`);
     }
+
+    // RBAC: Show user info and restrict access based on user_type
+    document.addEventListener('DOMContentLoaded', () => {
+      const userName = localStorage.getItem('user_name');
+      const userType = localStorage.getItem('user_type');
+      const userRBAC = document.getElementById('user-rbac');
+      if (userRBAC) {
+        if (userName) {
+          userRBAC.innerHTML = `<span style="color:var(--primary-color);font-weight:bold;">Welcome, ${userName}</span>
+            <span style="color:var(--text-muted);font-size:13px;margin-left:8px;">(${userType || 'user'})</span>
+            <button id="logoutBtn" style="margin-left:15px;padding:4px 12px;border-radius:6px;border:none;background:var(--danger-color);color:#fff;cursor:pointer;">Logout</button>`;
+        } else {
+          userRBAC.innerHTML = `<a href="login.html" class="btn btn-primary" style="padding:6px 18px;">Login</a>`;
+        }
+      }
+      // Logout logic
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        logoutBtn.onclick = () => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user_type');
+          localStorage.removeItem('user_name');
+          window.location.href = 'login.html';
+        };
+      }
+      // RBAC: Only allow "user" or "admin" to access, else redirect
+      if (!userType || (userType !== 'user' && userType !== 'admin')) {
+        alert('You do not have permission to access this page.');
+        window.location.href = 'home.html';
+      }
+    });
   </script>
 </body>
 </html>

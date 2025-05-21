@@ -75,7 +75,8 @@
       color: var(--text-color);
     }
     .form-group input,
-    .form-group textarea {
+    .form-group textarea,
+    .form-group select {
       width: 100%;
       padding: 10px;
       border-radius: 8px;
@@ -203,6 +204,7 @@
     <div class="logo">
       <i class="fas fa-calendar-alt"></i> EventSphere Sessions
     </div>
+    <div id="user-rbac" style="margin-left:20px;"></div>
   </header>
   
   <div class="container">
@@ -217,20 +219,24 @@
           <input type="text" id="sessionTitle" required>
         </div>
         <div class="form-group">
-          <label for="sessionSpeaker">Speaker</label>
-          <input type="text" id="sessionSpeaker" required>
-        </div>
-        <div class="form-group">
-          <label for="sessionDate">Date</label>
-          <input type="date" id="sessionDate" required>
-        </div>
-        <div class="form-group">
-          <label for="sessionTime">Time</label>
-          <input type="time" id="sessionTime" required>
-        </div>
-        <div class="form-group">
           <label for="sessionDescription">Description</label>
           <textarea id="sessionDescription" required></textarea>
+        </div>
+        <div class="form-group">
+          <label for="sessionCapacity">Capacity</label>
+          <input type="number" id="sessionCapacity" required>
+        </div>
+        <div class="form-group">
+          <label for="sessionStart">Start Time</label>
+          <input type="datetime-local" id="sessionStart" required>
+        </div>
+        <div class="form-group">
+          <label for="sessionEnd">End Time</label>
+          <input type="datetime-local" id="sessionEnd" required>
+        </div>
+        <div class="form-group">
+          <label for="sessionEventId">Event</label>
+          <select id="sessionEventId" required></select>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Add Session</button>
@@ -243,12 +249,13 @@
       <table>
         <thead>
           <tr>
-            <th>Session ID</th>
+            <th>ID</th>
             <th>Title</th>
-            <th>Speaker</th>
-            <th>Date</th>
-            <th>Time</th>
             <th>Description</th>
+            <th>Capacity</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th>Event Name</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -271,20 +278,24 @@
           <input type="text" id="editSessionTitle" required>
         </div>
         <div class="form-group">
-          <label for="editSessionSpeaker">Speaker</label>
-          <input type="text" id="editSessionSpeaker" required>
-        </div>
-        <div class="form-group">
-          <label for="editSessionDate">Date</label>
-          <input type="date" id="editSessionDate" required>
-        </div>
-        <div class="form-group">
-          <label for="editSessionTime">Time</label>
-          <input type="time" id="editSessionTime" required>
-        </div>
-        <div class="form-group">
           <label for="editSessionDescription">Description</label>
           <textarea id="editSessionDescription" required></textarea>
+        </div>
+        <div class="form-group">
+          <label for="editSessionCapacity">Capacity</label>
+          <input type="number" id="editSessionCapacity" required>
+        </div>
+        <div class="form-group">
+          <label for="editSessionStart">Start Time</label>
+          <input type="datetime-local" id="editSessionStart" required>
+        </div>
+        <div class="form-group">
+          <label for="editSessionEnd">End Time</label>
+          <input type="datetime-local" id="editSessionEnd" required>
+        </div>
+        <div class="form-group">
+          <label for="editSessionEventId">Event</label>
+          <select id="editSessionEventId" required></select>
         </div>
         <div class="form-actions">
           <button type="button" class="cancel-btn" id="cancelEdit">Cancel</button>
@@ -302,8 +313,46 @@
     const closeEditModalBtn = document.getElementById('closeEditModal');
     const cancelEditBtn = document.getElementById('cancelEdit');
     const editSessionForm = document.getElementById('editSessionForm');
-    
+    const sessionEventIdSelect = document.getElementById('sessionEventId');
+    const editSessionEventIdSelect = document.getElementById('editSessionEventId');
+
     let sessions = [];
+    let events = [];
+    let eventMap = {};
+
+    // Populate event dropdowns
+    function populateEventDropdowns() {
+      sessionEventIdSelect.innerHTML = '';
+      editSessionEventIdSelect.innerHTML = '';
+      events.forEach(ev => {
+        const opt1 = document.createElement('option');
+        opt1.value = ev.id;
+        opt1.textContent = ev.title;
+        sessionEventIdSelect.appendChild(opt1);
+
+        const opt2 = document.createElement('option');
+        opt2.value = ev.id;
+        opt2.textContent = ev.title;
+        editSessionEventIdSelect.appendChild(opt2);
+      });
+    }
+
+    // Fetch all events and build eventMap
+    async function fetchEvents() {
+      try {
+        const res = await fetch('/events');
+        if (!res.ok) throw new Error('Failed to fetch events');
+        events = await res.json();
+        eventMap = {};
+        events.forEach(ev => {
+          eventMap[ev.id] = ev.title;
+        });
+        populateEventDropdowns();
+      } catch (error) {
+        console.error('Error fetching events:', error);
+        eventMap = {};
+      }
+    }
 
     // Fetch sessions from backend
     async function fetchSessions() {
@@ -314,28 +363,28 @@
         renderSessions(sessions);
       } catch (error) {
         console.error('Error fetching sessions:', error);
-        sessionsTableBody.innerHTML = '<tr><td colspan="7">Error loading sessions.</td></tr>';
+        sessionsTableBody.innerHTML = '<tr><td colspan="8">Error loading sessions.</td></tr>';
       }
     }
 
     // Render sessions in table
     function renderSessions(sessionList) {
       if (sessionList.length === 0) {
-        sessionsTableBody.innerHTML = '<tr><td colspan="7">No sessions found.</td></tr>';
+        sessionsTableBody.innerHTML = '<tr><td colspan="8">No sessions found.</td></tr>';
         return;
       }
       sessionsTableBody.innerHTML = '';
       sessionList.forEach(session => {
         const tr = document.createElement('tr');
-        const date = new Date(session.session_date);
-        // Format date and time to proper strings (adjust as needed)
+        const eventName = eventMap[session.event_id] || session.event_id;
         tr.innerHTML = `
           <td>${session.id}</td>
           <td>${session.title}</td>
-          <td>${session.speaker}</td>
-          <td>${date.toLocaleDateString()}</td>
-          <td>${session.session_time}</td>
           <td>${session.description}</td>
+          <td>${session.capacity}</td>
+          <td>${session.start_time ? session.start_time.replace('T', ' ').slice(0, 16) : ''}</td>
+          <td>${session.end_time ? session.end_time.replace('T', ' ').slice(0, 16) : ''}</td>
+          <td>${eventName}</td>
           <td>
             <button class="edit-btn" data-id="${session.id}"><i class="fas fa-edit"></i> Edit</button>
             <button class="delete-btn" data-id="${session.id}"><i class="fas fa-trash"></i> Delete</button>
@@ -365,25 +414,16 @@
       e.preventDefault();
       const newSession = {
         title: document.getElementById('sessionTitle').value.trim(),
-        speaker: document.getElementById('sessionSpeaker').value.trim(),
-        session_date: document.getElementById('sessionDate').value,
-        session_time: document.getElementById('sessionTime').value,
-        description: document.getElementById('sessionDescription').value.trim()
+        description: document.getElementById('sessionDescription').value.trim(),
+        capacity: parseInt(document.getElementById('sessionCapacity').value),
+        start_time: document.getElementById('sessionStart').value.replace('T', ' '),
+        end_time: document.getElementById('sessionEnd').value.replace('T', ' '),
+        event_id: parseInt(sessionEventIdSelect.value)
       };
-      // Retrieve token from localStorage instead of using a placeholder
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('You are not logged in. Please log in first.');
-        window.location.href = 'login.html';
-        return;
-      }
       try {
         const res = await fetch('/sessions', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newSession)
         });
         if (!res.ok) throw new Error(await res.text() || 'Failed to add session');
@@ -400,10 +440,11 @@
       if (!session) return;
       document.getElementById('editSessionId').value = session.id;
       document.getElementById('editSessionTitle').value = session.title;
-      document.getElementById('editSessionSpeaker').value = session.speaker;
-      document.getElementById('editSessionDate').value = session.session_date;
-      document.getElementById('editSessionTime').value = session.session_time;
       document.getElementById('editSessionDescription').value = session.description;
+      document.getElementById('editSessionCapacity').value = session.capacity;
+      document.getElementById('editSessionStart').value = session.start_time ? session.start_time.slice(0, 16).replace(' ', 'T') : '';
+      document.getElementById('editSessionEnd').value = session.end_time ? session.end_time.slice(0, 16).replace(' ', 'T') : '';
+      editSessionEventIdSelect.value = session.event_id;
       editSessionModal.classList.add('show');
     }
 
@@ -420,15 +461,20 @@
       const sessionId = document.getElementById('editSessionId').value;
       const updatedSession = {
         title: document.getElementById('editSessionTitle').value.trim(),
-        speaker: document.getElementById('editSessionSpeaker').value.trim(),
-        session_date: document.getElementById('editSessionDate').value,
-        session_time: document.getElementById('editSessionTime').value,
-        description: document.getElementById('editSessionDescription').value.trim()
+        description: document.getElementById('editSessionDescription').value.trim(),
+        capacity: parseInt(document.getElementById('editSessionCapacity').value),
+        start_time: document.getElementById('editSessionStart').value.replace('T', ' '),
+        end_time: document.getElementById('editSessionEnd').value.replace('T', ' '),
+        event_id: parseInt(editSessionEventIdSelect.value)
       };
+      const token = localStorage.getItem('token');
       try {
         const res = await fetch(`/sessions/${sessionId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
           body: JSON.stringify(updatedSession)
         });
         if (!res.ok) throw new Error(await res.text() || 'Update failed');
@@ -441,9 +487,13 @@
 
     // Delete session (DELETE)
     async function deleteSession(sessionId) {
+      const token = localStorage.getItem('token');
       try {
         const res = await fetch(`/sessions/${sessionId}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
         });
         if (!res.ok) throw new Error(await res.text() || 'Delete failed');
         await fetchSessions();
@@ -453,7 +503,69 @@
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
+      await fetchEvents();
       await fetchSessions();
+    });
+
+    // RBAC: Show user info and restrict access based on user_type
+    document.addEventListener('DOMContentLoaded', function() {
+      const userName = localStorage.getItem('user_name');
+      const userType = localStorage.getItem('user_type');
+      const userRBAC = document.getElementById('user-rbac');
+      if (userRBAC) {
+        if (userName) {
+          userRBAC.innerHTML = `<span style="color:var(--primary-color);font-weight:bold;">Welcome, ${userName}</span>
+            <span style="color:var(--text-muted);font-size:13px;margin-left:8px;">(${userType || 'user'})</span>
+            <button id="logoutBtn" style="margin-left:15px;padding:4px 12px;border-radius:6px;border:none;background:#f44336;color:#fff;cursor:pointer;">Logout</button>`;
+        } else {
+          userRBAC.innerHTML = `<a href="login.html" class="btn btn-primary" style="padding:6px 18px;">Login</a>`;
+        }
+      }
+      // Logout logic
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        logoutBtn.onclick = () => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user_type');
+          localStorage.removeItem('user_name');
+          window.location.href = 'login.html';
+        };
+      }
+      // RBAC: Only allow admin, organizer, or speaker to manage sessions (CRUD)
+      // Attendees can only view sessions (no add/edit/delete)
+      if (!userType || !['admin', 'organizer', 'speaker', 'attendee'].includes(userType)) {
+        alert('You do not have permission to access this page.');
+        window.location.href = 'home.html';
+      }
+      // Hide session form and actions for attendees
+      if (userType === 'attendee') {
+        // Hide add session form
+        const sessionForm = document.querySelector('.session-form');
+        if (sessionForm) sessionForm.style.display = 'none';
+        // Hide Actions column and buttons
+        const actionsHeader = document.querySelector('th:last-child');
+        if (actionsHeader) actionsHeader.style.display = 'none';
+        document.querySelectorAll('td:last-child').forEach(td => td.style.display = 'none');
+      }
+    });
+    
+    // Check permissions and hide edit/delete buttons if not admin
+    fetch('/my-permissions', {
+      headers: {
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.role !== 'admin') {
+        // Hide or disable edit/delete buttons
+        document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => {
+          btn.style.display = 'none';
+        });
+      }
+    })
+    .catch(() => {
+      window.location.href = '/login.html';
     });
   </script>
 </body>

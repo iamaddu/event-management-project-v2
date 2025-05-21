@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Attendee Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Welcome, Attendee!</h1>
+  <nav>
+    <a href="/events.html">Browse Events</a> |
+    <a href="/myregistration.html">My Registrations</a>
+  </nav>
+  <div id="attendee-content"></div>
+  <script>
+    // Role-based access control for Attendee Dashboard
+    fetch('/my-permissions', {
+      headers: {
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.role !== 'attendee') {
+        if (data.role === 'admin') window.location.href = '/analytics.html';
+        else if (data.role === 'organizer') window.location.href = '/organizer-dashboard.html';
+        else if (data.role === 'vendor') window.location.href = '/vendor-dashboard.html';
+        else if (data.role === 'speaker') window.location.href = '/session.html';
+        else window.location.href = '/login.html';
+        return;
+      }
+      // Load attendee content here
+    })
+    .catch(() => {
+      window.location.href = '/login.html';
+    });
+  </script>
+</body>
+</html>

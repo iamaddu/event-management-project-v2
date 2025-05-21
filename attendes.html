@@ -712,7 +712,7 @@
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
   const tableBody = document.querySelector('tbody');
   const addAttendeeBtn = document.getElementById('addAttendeeBtn');
   const attendeeModal = document.getElementById('attendeeModal');
@@ -741,7 +741,11 @@
 
   // Fetch attendees
   function fetchAttendees() {
-    fetch('/attendees')
+    fetch('/attendees', {
+      headers: {
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      }
+    })
       .then((response) => {
         if (!response.ok) {
           throw new Error('Failed to fetch attendees');
@@ -751,11 +755,10 @@
       .then((attendees) => {
         tableBody.innerHTML = '';
         attendees.forEach((attendee) => {
-          // Use attendee.attendee_id if available, otherwise use attendee.id
           const attendeeId = attendee.attendee_id || attendee.id;
-          const statusClass = attendee.status === 'Checked In' ? 'checked-in' : 
+          const statusClass = attendee.status === 'Checked In' ? 'checked-in' :
                               attendee.status === 'Cancelled' ? 'cancelled' : 'registered';
-          const ticketClass = attendee.ticket_type === 'VIP' ? 'vip' : 
+          const ticketClass = attendee.ticket_type === 'VIP' ? 'vip' :
                               attendee.ticket_type === 'Student' ? 'student' : 'general';
 
           const row = `
@@ -806,10 +809,12 @@
     const method = currentAttendeeId ? 'PUT' : 'POST';
     const url = currentAttendeeId ? `/attendees/${currentAttendeeId}` : '/attendees';
 
-
     fetch(url, {
       method: method,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      },
       body: JSON.stringify(attendeeData),
     })
       .then((response) => {
@@ -819,7 +824,6 @@
         return response.json();
       })
       .then((data) => {
-        console.log('Attendee saved successfully:', data);
         alert('Attendee saved successfully!');
         attendeeModal.style.display = 'none';
         fetchAttendees();
@@ -834,13 +838,17 @@
   tableBody.addEventListener('click', (e) => {
     const editBtn = e.target.closest('.edit');
     const deleteBtn = e.target.closest('.delete');
-    
+
     if (editBtn) {
       const id = editBtn.dataset.id;
       currentAttendeeId = id;
-      
+
       // Fetch attendee data and populate form
-      fetch(`/attendees/${id}`)
+      fetch(`/attendees/${id}`, {
+        headers: {
+          'Authorization': 'Bearer ' + localStorage.getItem('token')
+        }
+      })
         .then(response => response.json())
         .then(attendee => {
           modalTitle.textContent = 'Edit Attendee';
@@ -854,11 +862,16 @@
           attendeeModal.style.display = 'block';
         });
     }
-    
+
     if (deleteBtn) {
       const id = deleteBtn.dataset.id;
       if (confirm('Are you sure you want to delete this attendee?')) {
-        fetch(`/attendees/${id}`, { method: 'DELETE' })
+        fetch(`/attendees/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
+          }
+        })
           .then(response => response.json())
           .then(() => fetchAttendees());
       }
@@ -870,13 +883,101 @@
   searchInput.addEventListener('input', (e) => {
     const searchTerm = e.target.value.toLowerCase();
     const rows = tableBody.querySelectorAll('tr');
-    
+
     rows.forEach(row => {
       const text = row.textContent.toLowerCase();
       row.style.display = text.includes(searchTerm) ? '' : 'none';
     });
   });
 });
+  </script>
+
+  <script>
+    // Role-based access control for Attendees Management page
+    fetch('/my-permissions', {
+      headers: {
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      // Admin: full access, no restrictions
+      if (data.role === 'admin') return;
+
+      // Organizer: can only view/manage attendees for their own events
+      if (data.role === 'organizer') {
+        // Store organizer ID for filtering
+        window.organizerId = data.user_id || data.id;
+
+        // Patch fetchAttendees to filter by organizer's events
+        document.addEventListener('DOMContentLoaded', () => {
+          const originalFetchAttendees = window.fetchAttendees;
+          window.fetchAttendees = function() {
+            fetch('/attendees', {
+              headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+              }
+            })
+            .then((response) => {
+              if (!response.ok) throw new Error('Failed to fetch attendees');
+              return response.json();
+            })
+            .then((attendees) => {
+              // Only show attendees for events organized by this organizer
+              const filtered = attendees.filter(a =>
+                String(a.organizer_id) === String(window.organizerId)
+              );
+              const tableBody = document.querySelector('tbody');
+              tableBody.innerHTML = '';
+              filtered.forEach((attendee) => {
+                const attendeeId = attendee.attendee_id || attendee.id;
+                const statusClass = attendee.status === 'Checked In' ? 'checked-in' :
+                                    attendee.status === 'Cancelled' ? 'cancelled' : 'registered';
+                const ticketClass = attendee.ticket_type === 'VIP' ? 'vip' :
+                                    attendee.ticket_type === 'Student' ? 'student' : 'general';
+                const row = `
+                  <tr>
+                    <td>${attendeeId}</td>
+                    <td>${attendee.first_name} ${attendee.last_name}</td>
+                    <td>${attendee.email}</td>
+                    <td>${attendee.phone || 'N/A'}</td>
+                    <td>${attendee.event_name || attendee.event_id}</td>
+                    <td><span class="badge badge-${ticketClass}">${attendee.ticket_type}</span></td>
+                    <td><span class="badge badge-${statusClass}">${attendee.status}</span></td>
+                    <td class="actions">
+                      <button class="action-btn edit" data-id="${attendeeId}">
+                        <i class="fas fa-edit"></i>
+                      </button>
+                      <button class="action-btn delete" data-id="${attendeeId}">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </td>
+                  </tr>
+                `;
+                tableBody.innerHTML += row;
+              });
+            })
+            .catch((error) => {
+              const tableBody = document.querySelector('tbody');
+              tableBody.innerHTML = '<tr><td colspan="8">Failed to load attendees. Please try again later.</td></tr>';
+            });
+          };
+          // Reload attendees with filter
+          window.fetchAttendees();
+        });
+        return;
+      }
+
+      // All others: no access
+      alert('You are not authorized to view attendees.');
+      if (data.role === 'attendee') window.location.href = 'attendee-dashboard.html';
+      else if (data.role === 'vendor') window.location.href = 'vendor-dashboard.html';
+      else if (data.role === 'speaker') window.location.href = 'session.html';
+      else window.location.href = 'home.html';
+    })
+    .catch(() => {
+      window.location.href = 'home.html';
+    });
   </script>
 </body>
 </html>

@@ -55,6 +55,29 @@
   </form>
 
   <script>
+    // RBAC: Only allow admin to access this page using /my-permissions endpoint
+    fetch('/my-permissions', {
+      headers: {
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.role !== 'admin') {
+        alert('You are not authorized to edit categories.');
+        if (data.role === 'organizer') window.location.href = 'event.html';
+        else if (data.role === 'attendee') window.location.href = 'attendee-dashboard.html';
+        else if (data.role === 'vendor') window.location.href = 'vendor-dashboard.html';
+        else if (data.role === 'speaker') window.location.href = 'session.html';
+        else window.location.href = 'home.html';
+        return;
+      }
+      // If authorized, nothing to do, page loads as normal
+    })
+    .catch(() => {
+      window.location.href = 'home.html';
+    });
+
     // Define authFetch if not already defined
     function authFetch(url, options = {}) {
       const token = localStorage.getItem('token');
@@ -67,7 +90,7 @@
       options.headers['Authorization'] = `Bearer ${token}`;
       return fetch(url, options);
     }
-    
+
     // Call this function on page load to fetch the category details and pre-fill the form
     function fetchCategoryDetails(categoryId) {
       authFetch(`/category/${categoryId}`)
@@ -80,7 +103,6 @@
           return response.json();
         })
         .then(category => {
-          console.log('Category details:', category);
           // Pre-fill your edit form fields with the category object
           document.getElementById('name').value = category.name;
           document.getElementById('slug').value = category.slug;
@@ -92,7 +114,6 @@
           document.getElementById('metaDescription').value = category.metaDescription;
         })
         .catch(error => {
-          console.error('Error fetching category details:', error.message);
           alert('Error fetching category details: ' + error.message);
         });
     }
@@ -118,7 +139,7 @@
 
       const updatedCategory = { name, slug, description, icon, color, status, metaTitle, metaDescription };
 
-      fetch(`/categories/${categoryId}`, {
+      authFetch(`/categories/${categoryId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -150,7 +171,6 @@
         alert('Event ID not found.');
         return;
       }
-      console.log('Requested update for event ID:', eventId);
       try {
         const response = await fetch(`/events/${eventId}?_=${Date.now()}`, {
           method: 'GET',
@@ -162,14 +182,11 @@
         });
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Fetch error:', response.status, response.statusText, errorText);
           throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
         const eventData = await response.json();
-        console.log('Fetched event data:', eventData);
         openUpdateModal(eventData);
       } catch (error) {
-        console.error('Error in update listener:', error);
         alert('Failed to load event details for update: ' + error.message);
       }
     });

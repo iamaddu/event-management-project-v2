@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vendor Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Welcome, Vendor!</h1>
+  <nav>
+    <a href="/vendor-booths.html">My Booths</a>
+  </nav>
+  <div id="vendor-content"></div>
+  <script>
+    if (localStorage.getItem('user_type') !== 'vendor') {
+      window.location.href = '/login.html';
+    }
+    // Load vendor content here
+  </script>
+</body>
+</html>
