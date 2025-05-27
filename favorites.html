@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>My Favorites - EventSphere</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    body { font-family: 'Poppins', sans-serif; background: #222; color: #fff; }
+    .fav-card { background: #333; border-radius: 10px; padding: 20px; margin: 20px 0; }
+    .remove-btn { color: #f44336; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>My Favorite Events</h1>
+  <div id="fav-list"></div>
+  <script>
+    function loadFavs() {
+      fetch('/favorites', {
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+      }).then(res => res.json()).then(favs => {
+        document.getElementById('fav-list').innerHTML = favs.map(f =>
+          `<div class="fav-card">
+            <b>${f.title}</b> <span style="font-size:12px;">(${f.venue}, ${new Date(f.start).toLocaleString()})</span>
+            <span class="remove-btn" onclick="removeFav(${f.event_id})"><i class="fas fa-heart-broken"></i> Remove</span>
+          </div>`
+        ).join('') || '<div>No favorites yet.</div>';
+      });
+    }
+    function removeFav(event_id) {
+      fetch('/favorites/' + event_id, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+      }).then(() => loadFavs());
+    }
+    loadFavs();
+  </script>
+</body>
+</html>

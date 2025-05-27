@@ -365,59 +365,34 @@ const safeDate = (date) => {
 
 // Create Event Endpoint
 app.post('/create-event', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
-  const {
-    title, description, start, end, location, venue, capacity,
-    price_standard, price_vip, price_premium, category_id, image
-  } = req.body;
-
-  const query = `
-    INSERT INTO events
-    (title, description, start, end, location, venue, capacity, price_standard, price_vip, price_premium, category_id, image, organizer)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-  const params = [
-    title, description, start, end, location, venue, capacity,
-    price_standard, price_vip, price_premium, category_id, image, req.user.id
-  ];
-
-  db.query(query, params, (err, result) => {
-    if (err) {
-      console.error('Error creating event:', err);
-      return res.status(500).json({ error: 'Failed to create event' });
+  let organizerId;
+  if (req.user.user_type === 'admin') {
+    organizerId = req.body.organizer; // Admin assigns organizer
+    if (!organizerId) {
+      return res.status(400).json({ error: 'Organizer user ID is required.' });
     }
-    res.json({ message: 'Event created successfully', id: result.insertId });
-  });
-});
-
-// Update Event Endpoint
-app.put('/events/:id', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
-  const { id } = req.params;
+  } else {
+    organizerId = req.user.id; // Organizer assigns self
+  }
   const {
-    title,
-    description,
-    start,
-    end,
-    location,
-    venue,
-    capacity,
-    price_standard,
-    price_vip,
-    price_premium,
-    category_id,
-    image
+    title, description, start, end, location, venue, capacity,
+    price_standard, price_vip, price_premium, category_id, image,
+    event_type
   } = req.body;
+
   const query = `
-    UPDATE events
-    SET title = ?, description = ?, start = ?, end = ?, location = ?, venue = ?, capacity = ?, price_standard = ?, price_vip = ?, price_premium = ?, category_id = ?, image = ?
-    WHERE id = ?
+    INSERT INTO events (
+      title, description, organizer, start, end, location, venue, capacity, price_standard, price_vip, price_premium, status, category_id, image, event_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Published', ?, ?, ?)
   `;
   db.query(
     query,
     [
       title,
       description,
-      safeDate(start),
-      safeDate(end),
+      organizerId,
+      start,
+      end,
       location,
       venue,
       capacity,
@@ -426,16 +401,40 @@ app.put('/events/:id', authenticateToken, authorizeRoles('admin', 'organizer'), 
       price_premium,
       category_id,
       image || null,
-      id
+      event_type
     ],
     (err, result) => {
       if (err) {
-        console.error('Error updating event:', err.message);
-        return res.status(500).json({ error: 'Failed to update event', details: err.message });
+        console.error('Error inserting event:', err);
+        return res.status(500).json({ error: 'Failed to create event' });
       }
-      res.json({ message: 'Event updated successfully' });
+      res.json({ success: true, eventId: result.insertId });
     }
   );
+});
+
+// Update Event Endpoint
+app.put('/events/:id', authenticateToken, authorizeRoles('organizer', 'admin'), (req, res) => {
+  db.query('SELECT * FROM events WHERE id = ?', [req.params.id], (err, results) => {
+    if (err || results.length === 0) return res.status(404).json({ error: 'Event not found' });
+    if (req.user.user_type !== 'admin' && results[0].organizer !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden: not your event' });
+    }
+    // ...update logic here...
+    // Example:
+    const {
+      title, description, start, end, location, venue, capacity,
+      price_standard, price_vip, price_premium, category_id, image
+    } = req.body;
+    db.query(
+      `UPDATE events SET title=?, description=?, start=?, end=?, location=?, venue=?, capacity=?, price_standard=?, price_vip=?, price_premium=?, category_id=?, image=? WHERE id=?`,
+      [title, description, start, end, location, venue, capacity, price_standard, price_vip, price_premium, category_id, image, req.params.id],
+      (err2) => {
+        if (err2) return res.status(500).json({ error: 'Failed to update event' });
+        res.json({ message: 'Event updated' });
+      }
+    );
+  });
 });
 
 // GET event details using MySQL query
@@ -546,9 +545,55 @@ app.get('/events', (req, res) => {
 // Analytics Endpoint
 // ========================
 
+// Main analytics summary (current, previous, per-event)
 app.get('/analytics', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
-  // This query gets all events and aggregates attendee count and revenue from tickets
-  const query = `
+  const range = parseInt(req.query.range) || 30;
+  const now = new Date();
+  const startCurrent = new Date(now.getTime() - range * 24 * 60 * 60 * 1000);
+  const startPrev = new Date(startCurrent.getTime() - range * 24 * 60 * 60 * 1000);
+  const toMySQL = d => d.toISOString().slice(0, 19).replace('T', ' ');
+
+  // Organizer filter
+  let organizerFilter = '';
+  let paramsCurrent = [
+    toMySQL(startCurrent), toMySQL(now),
+    toMySQL(startCurrent), toMySQL(now)
+  ];
+  let paramsPrev = [
+    toMySQL(startPrev), toMySQL(startCurrent),
+    toMySQL(startPrev), toMySQL(startCurrent)
+  ];
+  if (req.user.user_type === 'organizer') {
+    organizerFilter = ' AND e.organizer = ?';
+    paramsCurrent.push(req.user.id, req.user.id);
+    paramsPrev.push(req.user.id, req.user.id);
+  }
+
+  const currentQuery = `
+    SELECT 
+      COUNT(DISTINCT e.id) AS events,
+      COALESCE(SUM(t.quantity), 0) AS attendees,
+      COALESCE(SUM(t.total_price), 0) AS revenue,
+      ROUND(
+        CASE WHEN COALESCE(SUM(e.capacity), 0) > 0 THEN (COALESCE(SUM(t.quantity), 0) / COALESCE(SUM(e.capacity), 0)) * 100 ELSE 0 END, 2
+      ) AS conversion
+    FROM events e
+    LEFT JOIN tickets t ON t.event_id = e.id AND t.purchase_date >= ? AND t.purchase_date <= ?
+    WHERE e.start >= ? AND e.start <= ?${organizerFilter}
+  `;
+  const previousQuery = `
+    SELECT 
+      COUNT(DISTINCT e.id) AS events,
+      COALESCE(SUM(t.quantity), 0) AS attendees,
+      COALESCE(SUM(t.total_price), 0) AS revenue,
+      ROUND(
+        CASE WHEN COALESCE(SUM(e.capacity), 0) > 0 THEN (COALESCE(SUM(t.quantity), 0) / COALESCE(SUM(e.capacity), 0)) * 100 ELSE 0 END, 2
+      ) AS conversion
+    FROM events e
+    LEFT JOIN tickets t ON t.event_id = e.id AND t.purchase_date >= ? AND t.purchase_date <= ?
+    WHERE e.start >= ? AND e.start <= ?${organizerFilter}
+  `;
+  const eventsQuery = `
     SELECT 
       e.id,
       e.title AS event_name,
@@ -558,25 +603,43 @@ app.get('/analytics', authenticateToken, authorizeRoles('admin', 'organizer'), (
       COALESCE(SUM(t.quantity), 0) AS attendee_count,
       COALESCE(SUM(t.total_price), 0) AS revenue,
       ROUND(
-        CASE WHEN e.capacity > 0 THEN (COALESCE(SUM(t.quantity), 0) / e.capacity) * 100 ELSE 0 END, 2
+        CASE WHEN COALESCE(e.capacity, 0) > 0 THEN (COALESCE(SUM(t.quantity), 0) / COALESCE(e.capacity, 0)) * 100 ELSE 0 END, 2
       ) AS conversion_rate
     FROM events e
-    LEFT JOIN tickets t ON t.event_id = e.id
+    LEFT JOIN tickets t ON t.event_id = e.id AND t.purchase_date >= ? AND t.purchase_date <= ?
+    WHERE e.start >= ? AND e.start <= ?${organizerFilter}
     GROUP BY e.id
     ORDER BY e.start ASC
   `;
-  db.query(query, (err, results) => {
+
+  db.query(currentQuery, paramsCurrent, (err, currentRows) => {
     if (err) {
-      console.error('Error fetching analytics:', err);
-      return res.status(500).json({ error: 'Failed to fetch analytics' });
+      console.error('Analytics currentQuery error:', err);
+      return res.status(500).json({ error: 'Failed to fetch analytics (current)' });
     }
-    res.json(results);
+    db.query(previousQuery, paramsPrev, (err2, prevRows) => {
+      if (err2) {
+        console.error('Analytics previousQuery error:', err2);
+        return res.status(500).json({ error: 'Failed to fetch analytics (previous)' });
+      }
+      db.query(eventsQuery, paramsCurrent, (err3, eventsRows) => {
+        if (err3) {
+          console.error('Analytics eventsQuery error:', err3);
+          return res.status(500).json({ error: 'Failed to fetch event analytics' });
+        }
+        res.json({
+          current: currentRows[0] || { events: 0, attendees: 0, revenue: 0, conversion: 0 },
+          previous: prevRows[0] || { events: 0, attendees: 0, revenue: 0, conversion: 0 },
+          events: eventsRows || []
+        });
+      });
+    });
   });
 });
 
 // Ticket Types Distribution
 app.get('/analytics/ticket-types', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
-  const query = `
+  let query = `
     SELECT 
       CASE 
         WHEN t.quantity > 0 AND e.price_vip > 0 AND t.total_price / t.quantity = e.price_vip THEN 'VIP'
@@ -586,34 +649,36 @@ app.get('/analytics/ticket-types', authenticateToken, authorizeRoles('admin', 'o
       SUM(t.quantity) AS count
     FROM tickets t
     JOIN events e ON t.event_id = e.id
-    GROUP BY type
   `;
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error fetching ticket types:', err);
-      return res.status(500).json({ error: 'Failed to fetch ticket types' });
-    }
+  let params = [];
+  if (req.user.user_type === 'organizer') {
+    query += ' WHERE e.organizer = ?';
+    params.push(req.user.id);
+  }
+  query += ' GROUP BY type';
+  db.query(query, params, (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch ticket types' });
     res.json(results);
   });
 });
 
-// Monthly Performance
 app.get('/analytics/monthly-performance', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
-  const query = `
+  let query = `
     SELECT 
       DATE_FORMAT(e.start, '%b %Y') AS month,
       COALESCE(SUM(t.total_price), 0) AS revenue,
       COALESCE(SUM(t.quantity), 0) AS attendees
     FROM events e
     LEFT JOIN tickets t ON t.event_id = e.id
-    GROUP BY YEAR(e.start), MONTH(e.start)
-    ORDER BY e.start ASC
   `;
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error fetching monthly performance:', err);
-      return res.status(500).json({ error: 'Failed to fetch monthly performance' });
-    }
+  let params = [];
+  if (req.user.user_type === 'organizer') {
+    query += ' WHERE e.organizer = ?';
+    params.push(req.user.id);
+  }
+  query += ' GROUP BY YEAR(e.start), MONTH(e.start) ORDER BY e.start ASC';
+  db.query(query, params, (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch monthly performance' });
     res.json(results);
   });
 });
@@ -955,6 +1020,22 @@ app.get('/my-registrations', authenticateToken, (req, res) => {
   });
 });
 
+// Organizer: Get all registrations for their events
+app.get('/organizer/registrations', authenticateToken, authorizeRoles('organizer'), (req, res) => {
+  const organizerId = req.user.id;
+  const query = `
+    SELECT r.*, e.title AS event_title
+    FROM registrations r
+    JOIN events e ON r.event_id = e.id
+    WHERE e.organizer = ?
+    ORDER BY r.created_at DESC
+  `;
+  db.query(query, [organizerId], (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch registrations' });
+    res.json(results);
+  });
+});
+
 // Get Category ID by Name
 app.post('/get-category-id', (req, res) => {
   const { name } = req.body;
@@ -1001,6 +1082,7 @@ app.get('/event/:eventId/attendees', (req, res) => {
     FROM purchases p
     JOIN users u ON p.user_id = u.id
     LEFT JOIN events e ON p.event_id = e.id
+    WHERE p.event_id = ?
   `;
   db.query(query, [eventId], (err, results) => {
     if (err) {
@@ -1094,37 +1176,17 @@ app.delete('/sessions/:id', (req, res) => {
   });
 });
 
-// Get ticket prices for a specific event
-app.get('/events/:id/ticket-prices', (req, res) => {
-  const { id } = req.params;
-  const query = `
-    SELECT price_standard, price_vip, price_premium
-    FROM events
-    WHERE id = ?
-  `;
-  db.query(query, [id], (err, results) => {
-    if (err) {
-      console.error('Error fetching ticket prices:', err);
-      return res.status(500).json({ error: 'Failed to fetch ticket prices' });
-    }
-    if (results.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-    res.json(results[0]);
-  });
-});
-
-app.get('/events/:id/tickets', (req, res) => {
-  const { id } = req.params;
-  const query = `
-    SELECT * FROM tickets WHERE event_id = ?
-  `;
-  db.query(query, [id], (err, results) => {
-    if (err) {
-      console.error('Error fetching tickets:', err);
-      return res.status(500).json({ error: 'Failed to fetch tickets' });
-    }
-    res.json(results);
+app.get('/events/:id/ticket-types', (req, res) => {
+  const eventId = req.params.id;
+  db.query('SELECT price_standard, price_vip, price_student, price_premium FROM events WHERE id=?', [eventId], (err, rows) => {
+    if (err || !rows.length) return res.status(404).json([]);
+    const prices = rows[0];
+    res.json([
+      { key: 'general', label: 'General Admission', price: prices.price_standard },
+      { key: 'vip', label: 'VIP Pass', price: prices.price_vip },
+      { key: 'student', label: 'Student Ticket', price: prices.price_student },
+      { key: 'premium', label: 'Premium Experience', price: prices.price_premium }
+    ].filter(t => t.price > 0));
   });
 });
 
@@ -1172,6 +1234,15 @@ app.post('/categories', authenticateToken, (req, res) => {
 
 // --- Example: Emit notification when a new event is added ---
 app.post('/create-event', authenticateToken, (req, res) => {
+  let organizerId;
+  if (req.user.user_type === 'admin') {
+    organizerId = req.body.organizer; // Admin assigns organizer
+    if (!organizerId) {
+      return res.status(400).json({ error: 'Organizer user ID is required.' });
+    }
+  } else {
+    organizerId = req.user.id; // Organizer assigns self
+  }
   const {
     title,
     description,
@@ -1184,22 +1255,23 @@ app.post('/create-event', authenticateToken, (req, res) => {
     price_vip,
     price_premium,
     category_id,
-    image
+    image,
+    event_type // <-- add this
   } = req.body;
-  const organizer = req.user.id;
+
   const query = `
     INSERT INTO events (
-      title, description, organizer, start, end, location, venue, capacity, price_standard, price_vip, price_premium, status, category_id, image
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Published', ?, ?)
+      title, description, organizer, start, end, location, venue, capacity, price_standard, price_vip, price_premium, status, category_id, image, event_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Published', ?, ?, ?)
   `;
   db.query(
     query,
     [
       title,
       description,
-      organizer,
-      safeDate(start),
-      safeDate(end),
+      organizerId,
+      start,
+      end,
       location,
       venue,
       capacity,
@@ -1207,7 +1279,8 @@ app.post('/create-event', authenticateToken, (req, res) => {
       price_vip,
       price_premium,
       category_id,
-      image || null
+      image || null,
+      event_type // <-- add this
     ],
     (err, result) => {
       if (err) {
@@ -1299,16 +1372,92 @@ app.get('/admin/events', authenticateToken, authorizeRoles('admin'), (req, res) 
   });
 });
 
+// Only admin can view all registrations
+app.get('/admin/registrations', authenticateToken, authorizeRoles('admin'), (req, res) => {
+  const query = `
+    SELECT 
+      r.id AS registration_id,
+      r.firstName,
+      r.lastName,
+      r.email,
+      r.phone,
+      r.ticketType,
+      r.quantity,
+      r.status,
+      r.created_at,
+      e.title AS event_title,
+      e.start,
+      u.first_name,
+      u.last_name
+    FROM registrations r
+    LEFT JOIN events e ON r.event_id = e.id
+    LEFT JOIN users u ON r.user_id = u.id
+    ORDER BY r.created_at DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching registrations:', err);
+      return res.status(500).json({ error: 'Failed to fetch registrations' });
+    }
+    res.json(results);
+  });
+});
+
 // --- ORGANIZER ROUTES ---
 // Organizer can create events
 app.post('/events', authenticateToken, authorizeRoles('organizer', 'admin'), (req, res) => {
-  // ...your create event logic...
+  const {
+    title,
+    description,
+    start,
+    end,
+    location,
+    venue,
+    capacity,
+    price_standard,
+    price_vip,
+    price_premium,
+    category_id,
+    image,
+    event_type // <-- add this
+  } = req.body;
+
+  const query = `
+    INSERT INTO events (
+      title, description, organizer, start, end, location, venue, capacity, price_standard, price_vip, price_premium, status, category_id, image, event_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Published', ?, ?, ?)
+  `;
+  db.query(
+    query,
+    [
+      title,
+      description,
+      organizerId,
+      start,
+      end,
+      location,
+      venue,
+      capacity,
+      price_standard,
+      price_vip,
+      price_premium,
+      category_id,
+      image || null,
+      event_type // <-- add this
+    ],
+    (err, result) => {
+      if (err) {
+        console.error('Error inserting event:', err);
+        return res.status(500).json({ error: 'Failed to create event', details: err.message });
+      }
+      res.json({ message: 'Event created successfully', eventId: result.insertId });
+    }
+  );
 });
 
-// Organizer can view only their events
-app.get('/organizer/events', authenticateToken, authorizeRoles('organizer'), (req, res) => {
+app.get('/my-events', authenticateToken, authorizeRoles('organizer'), (req, res) => {
   db.query('SELECT * FROM events WHERE organizer = ?', [req.user.id], (err, results) => {
-    if (err) return res.status(500).json({ error: 'Failed to fetch events' });
+    if (err) return res.status(500).json({ error: 'Database error' });
     res.json(results);
   });
 });
@@ -1320,7 +1469,20 @@ app.put('/events/:id', authenticateToken, authorizeRoles('organizer', 'admin'), 
     if (req.user.user_type !== 'admin' && results[0].organizer !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden: not your event' });
     }
-    // ...update logic...
+    // ...update logic here...
+    // Example:
+    const {
+      title, description, start, end, location, venue, capacity,
+      price_standard, price_vip, price_premium, category_id, image
+    } = req.body;
+    db.query(
+      `UPDATE events SET title=?, description=?, start=?, end=?, location=?, venue=?, capacity=?, price_standard=?, price_vip=?, price_premium=?, category_id=?, image=? WHERE id=?`,
+      [title, description, start, end, location, venue, capacity, price_standard, price_vip, price_premium, category_id, image, req.params.id],
+      (err2) => {
+        if (err2) return res.status(500).json({ error: 'Failed to update event' });
+        res.json({ message: 'Event updated' });
+      }
+    );
   });
 });
 app.delete('/events/:id', authenticateToken, authorizeRoles('organizer', 'admin'), (req, res) => {
@@ -1329,8 +1491,8 @@ app.delete('/events/:id', authenticateToken, authorizeRoles('organizer', 'admin'
     if (req.user.user_type !== 'admin' && results[0].organizer !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden: not your event' });
     }
-    db.query('DELETE FROM events WHERE id = ?', [req.params.id], (err) => {
-      if (err) return res.status(500).json({ error: 'Failed to delete event' });
+    db.query('DELETE FROM events WHERE id = ?', [req.params.id], (err2) => {
+      if (err2) return res.status(500).json({ error: 'Failed to delete event' });
       res.json({ message: 'Event deleted' });
     });
   });
@@ -1502,5 +1664,71 @@ app.delete('/sessions/:id', authenticateToken, requireAdmin, (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
     res.json({ message: 'Session deleted successfully' });
+  });
+});
+
+app.post('/cancel-registration/:id', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  const registrationId = req.params.id;
+  // Optionally: check if registration exists and is not already cancelled
+  const selectQuery = 'SELECT * FROM registrations WHERE id = ?';
+  db.query(selectQuery, [registrationId], (err, results) => {
+    if (err) {
+      console.error('Error fetching registration:', err);
+      return res.status(500).json({ error: 'Failed to fetch registration' });
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'Registration not found' });
+    }
+    if (results[0].status === 'cancelled') {
+      return res.json({ success: true, message: 'Already cancelled' });
+    }
+    // Update status to cancelled
+    const updateQuery = 'UPDATE registrations SET status = "cancelled" WHERE id = ?';
+    db.query(updateQuery, [registrationId], (err2, result) => {
+      if (err2) {
+        console.error('Error cancelling registration:', err2);
+        return res.status(500).json({ error: 'Failed to cancel registration' });
+      }
+      res.json({ success: true, message: 'Registration cancelled' });
+    });
+  });
+});
+
+app.post('/confirm-registration/:id', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  const registrationId = req.params.id;
+  const selectQuery = 'SELECT * FROM registrations WHERE id = ?';
+  db.query(selectQuery, [registrationId], (err, results) => {
+    if (err) {
+      console.error('Error fetching registration:', err);
+      return res.status(500).json({ error: 'Failed to fetch registration' });
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'Registration not found' });
+    }
+    if (results[0].status === 'confirmed') {
+      return res.json({ success: true, message: 'Already confirmed' });
+    }
+    // Update status to confirmed
+    const updateQuery = 'UPDATE registrations SET status = "confirmed" WHERE id = ?';
+    db.query(updateQuery, [registrationId], (err2, result) => {
+      if (err2) {
+        console.error('Error confirming registration:', err2);
+        return res.status(500).json({ error: 'Failed to confirm registration' });
+      }
+      res.json({ success: true, message: 'Registration confirmed' });
+    });
+  });
+});
+
+app.get('/my-categories', authenticateToken, authorizeRoles('organizer'), (req, res) => {
+  const query = `
+    SELECT DISTINCT c.*
+    FROM categories c
+    JOIN events e ON e.category_id = c.id
+    WHERE e.organizer = ?
+  `;
+  db.query(query, [req.user.id], (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch categories' });
+    res.json(results);
   });
 });

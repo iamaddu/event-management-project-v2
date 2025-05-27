@@ -641,6 +641,11 @@
         </a>
       </div>
     </div>
+
+    <!-- Link to My Registrations (newly added) -->
+    <a href="myregistration.html" class="btn btn-primary" style="margin: 20px 0; display: inline-block;">
+      <i class="fas fa-list"></i> My Registrations
+    </a>
   </div>
   
   <footer>
@@ -703,7 +708,7 @@
         return;
       }
       registrationsContainer.innerHTML = registrations.map(reg => `
-        <div class="registration-card" data-registration-id="${reg.id}">
+        <div class="registration-card" data-registration-id="${reg.reg_id}">
           <h3 class="registration-title"><i class="fas fa-calendar-day"></i> ${reg.event_name}</h3>
           <p><i class="fas fa-calendar-alt"></i> <strong>Date:</strong> ${new Date(reg.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
           <p><i class="fas fa-map-marker-alt"></i> <strong>Venue:</strong> ${reg.venue}</p>
@@ -711,8 +716,38 @@
           <p><i class="fas fa-hashtag"></i> <strong>Quantity:</strong> ${reg.quantity}</p>
           <p><i class="fas fa-dollar-sign"></i> <strong>Total Paid:</strong> $${reg.total_price.toFixed(2)}</p>
           <p><i class="fas fa-info-circle"></i> <strong>Status:</strong> <span class="status-badge status-${reg.status.toLowerCase()}">${reg.status}</span></p>
+          ${reg.status === 'confirmed' ? `
+            <button class="btn btn-outline cancel-reg-btn" 
+                    data-reg-id="${reg.reg_id}" 
+                    data-reg-source="${reg.source}" 
+                    style="margin-top:10px;">
+              <i class="fas fa-times"></i> Cancel Registration
+            </button>
+          ` : ''}
         </div>
       `).join('');
+
+      // After rendering, add event listeners for cancel buttons:
+      document.querySelectorAll('.cancel-reg-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const regId = btn.dataset.regId;
+          const regSource = btn.dataset.regSource;
+          const res = await fetch(`/cancel-registration/${regId}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ source: regSource })
+          });
+          if (res.ok) {
+            alert('Registration cancelled.');
+            await fetchAndRenderRegistrations();
+          } else {
+            alert('Failed to cancel registration.');
+          }
+        });
+      });
     }
 
     async function fetchAndRenderRegistrations() {
@@ -787,16 +822,16 @@
         const ticketTypeSelect = document.getElementById('ticketType');
         ticketTypeSelect.innerHTML = '<option value="">Select Ticket</option>';
         if (eventObj.price_standard) {
-          ticketTypeSelect.innerHTML += <option value="standard">Standard - $${eventObj.price_standard.toFixed(2)}</option>;
+          ticketTypeSelect.innerHTML += `<option value="standard">Standard - $${eventObj.price_standard.toFixed(2)}</option>`;
         }
         if (eventObj.price_vip) {
-          ticketTypeSelect.innerHTML += <option value="vip">VIP - $${eventObj.price_vip.toFixed(2)}</option>;
+          ticketTypeSelect.innerHTML += `<option value="vip">VIP - $${eventObj.price_vip.toFixed(2)}</option>`;
         }
         if (eventObj.price_premium) {
-          ticketTypeSelect.innerHTML += <option value="premium">Premium - $${eventObj.price_premium.toFixed(2)}</option>;
+          ticketTypeSelect.innerHTML += `<option value="premium">Premium - $${eventObj.price_premium.toFixed(2)}</option>`;
         }
         if (!eventObj.price_standard && !eventObj.price_vip && !eventObj.price_premium) {
-          ticketTypeSelect.innerHTML += '<option value="free">Free Admission</option>';
+          ticketTypeSelect.innerHTML += `<option value="free">Free Admission</option>`;
         }
 
         // --- LOCK REGISTRATION FORM IF ALREADY REGISTERED ---
@@ -866,16 +901,16 @@
               const ticketTypeSelect = document.getElementById('ticketType');
               ticketTypeSelect.innerHTML = '<option value="">Select Ticket</option>';
               if (event.price_standard) {
-                ticketTypeSelect.innerHTML += <option value="standard">Standard - $${event.price_standard.toFixed(2)}</option>;
+                ticketTypeSelect.innerHTML += `<option value="standard">Standard - $${event.price_standard.toFixed(2)}</option>`;
               }
               if (event.price_vip) {
-                ticketTypeSelect.innerHTML += <option value="vip">VIP - $${event.price_vip.toFixed(2)}</option>;
+                ticketTypeSelect.innerHTML += `<option value="vip">VIP - $${event.price_vip.toFixed(2)}</option>`;
               }
               if (event.price_premium) {
-                ticketTypeSelect.innerHTML += <option value="premium">Premium - $${event.price_premium.toFixed(2)}</option>;
+                ticketTypeSelect.innerHTML += `<option value="premium">Premium - $${event.price_premium.toFixed(2)}</option>`;
               }
               if (!event.price_standard && !event.price_vip && !event.price_premium) {
-                ticketTypeSelect.innerHTML += '<option value="free">Free Admission</option>';
+                ticketTypeSelect.innerHTML += `<option value="free">Free Admission</option>`;
               }
               registrationForm.scrollIntoView({ behavior: 'smooth' });
             });

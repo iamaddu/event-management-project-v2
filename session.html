@@ -305,6 +305,45 @@
     </div>
   </div>
   
+  <!-- Add this after each session in session.html -->
+  <div class="session-comments" data-session-id="{SESSION_ID}">
+    <h4>Comments & Ratings</h4>
+    <div class="comments-list"></div>
+    <form class="add-comment-form">
+      <textarea name="comment" required placeholder="Add your comment"></textarea>
+      <select name="rating" required>
+        <option value="">Rating</option>
+        <option value="5">5 - Excellent</option>
+        <option value="4">4 - Good</option>
+        <option value="3">3 - Average</option>
+        <option value="2">2 - Poor</option>
+        <option value="1">1 - Bad</option>
+      </select>
+      <button type="submit">Submit</button>
+    </form>
+  </div>
+
+  <!-- Modal for comments -->
+  <div id="commentsModal" class="modal" style="display:none;">
+    <div class="update-form" style="max-width:600px;">
+      <button class="close-modal" id="closeCommentsModal" aria-label="Close comments modal">&times;</button>
+      <h2 class="form-title">Session Comments & Ratings</h2>
+      <div id="commentsList"></div>
+      <form id="addCommentForm" style="margin-top:15px;">
+        <textarea id="commentText" required placeholder="Add your comment"></textarea>
+        <select id="commentRating" required>
+          <option value="">Rating</option>
+          <option value="5">5 - Excellent</option>
+          <option value="4">4 - Good</option>
+          <option value="3">3 - Average</option>
+          <option value="2">2 - Poor</option>
+          <option value="1">1 - Bad</option>
+        </select>
+        <button type="submit" class="btn-primary">Submit</button>
+      </form>
+    </div>
+  </div>
+  
   <script>
     // DOM Elements
     const sessionsTableBody = document.getElementById('sessionsTableBody');
@@ -315,10 +354,27 @@
     const editSessionForm = document.getElementById('editSessionForm');
     const sessionEventIdSelect = document.getElementById('sessionEventId');
     const editSessionEventIdSelect = document.getElementById('editSessionEventId');
+    const commentsModal = document.getElementById('commentsModal');
+    const closeCommentsModalBtn = document.getElementById('closeCommentsModal');
+    const addCommentForm = document.getElementById('addCommentForm');
+    const commentsList = document.getElementById('commentsList');
 
     let sessions = [];
     let events = [];
     let eventMap = {};
+
+    // User info
+    let userRole = localStorage.getItem('user_type');
+    let userName = localStorage.getItem('user_name');
+    let userToken = localStorage.getItem('token');
+    let userId = null;
+
+    // Optionally fetch userId from backend if needed for comments
+    if (userToken) {
+      fetch('/my-permissions', { headers: { 'Authorization': 'Bearer ' + userToken } })
+        .then(res => res.json())
+        .then(data => { userRole = data.role; });
+    }
 
     // Populate event dropdowns
     function populateEventDropdowns() {
@@ -377,6 +433,10 @@
       sessionList.forEach(session => {
         const tr = document.createElement('tr');
         const eventName = eventMap[session.event_id] || session.event_id;
+        let registerBtn = '';
+        if (window.userRole === 'attendee') {
+          registerBtn = `<button class="session-register-btn" data-id="${session.id}">Register</button>`;
+        }
         tr.innerHTML = `
           <td>${session.id}</td>
           <td>${session.title}</td>
@@ -386,8 +446,10 @@
           <td>${session.end_time ? session.end_time.replace('T', ' ').slice(0, 16) : ''}</td>
           <td>${eventName}</td>
           <td>
+            ${registerBtn}
             <button class="edit-btn" data-id="${session.id}"><i class="fas fa-edit"></i> Edit</button>
             <button class="delete-btn" data-id="${session.id}"><i class="fas fa-trash"></i> Delete</button>
+            <button class="comments-btn" data-id="${session.id}"><i class="fas fa-comments"></i> Comments</button>
           </td>
         `;
         sessionsTableBody.appendChild(tr);
@@ -405,6 +467,12 @@
           if (confirm('Are you sure you want to delete this session?')) {
             await deleteSession(sessionId);
           }
+        });
+      });
+      document.querySelectorAll('.comments-btn').forEach(button => {
+        button.addEventListener('click', () => {
+          const sessionId = button.getAttribute('data-id');
+          openCommentsModal(sessionId);
         });
       });
     }
@@ -502,6 +570,60 @@
       }
     }
 
+    let currentSessionIdForComments = null;
+
+    // Open comments modal
+    function openCommentsModal(sessionId) {
+      currentSessionIdForComments = sessionId;
+      document.getElementById('commentsModal').style.display = 'block';
+      loadSessionComments(sessionId);
+      // Only attendees can add comments
+      document.getElementById('addCommentForm').style.display = (userRole === 'attendee') ? 'block' : 'none';
+    }
+    document.getElementById('closeCommentsModal').onclick = function() {
+      document.getElementById('commentsModal').style.display = 'none';
+    };
+
+    function loadSessionComments(sessionId) {
+      fetch(`/sessions/${sessionId}/comments`)
+        .then(res => res.json())
+        .then(comments => {
+          const list = document.getElementById('commentsList');
+          list.innerHTML = comments.length
+            ? comments.map(c =>
+                `<div style="margin-bottom:10px;">
+                  <b>${c.username}</b> <span style="color:gold;">${'★'.repeat(c.rating)}${'☆'.repeat(5-c.rating)}</span>
+                  <div>${c.comment}</div>
+                  <span style="color:#aaa;font-size:12px;">${new Date(c.created_at).toLocaleString()}</span>
+                </div>`
+              ).join('')
+            : '<div>No comments yet.</div>';
+        });
+    }
+
+    document.getElementById('addCommentForm').onsubmit = function(e) {
+      e.preventDefault();
+      const comment = document.getElementById('commentText').value;
+      const rating = document.getElementById('commentRating').value;
+      fetch(`/sessions/${currentSessionIdForComments}/comment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + userToken
+        },
+        body: JSON.stringify({ comment, rating })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          document.getElementById('addCommentForm').reset();
+          loadSessionComments(currentSessionIdForComments);
+        } else {
+          alert(data.error || 'Failed to add comment');
+        }
+      });
+    };
+
     document.addEventListener('DOMContentLoaded', async () => {
       await fetchEvents();
       await fetchSessions();
@@ -566,6 +688,17 @@
     })
     .catch(() => {
       window.location.href = '/login.html';
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+      // Hide add session form for attendees
+      if (userRole === 'attendee') {
+        const sessionForm = document.querySelector('.session-form');
+        if (sessionForm) sessionForm.style.display = 'none';
+        // Hide edit/delete buttons (handled in renderSessions)
+      }
+      // Hide register button for non-attendees (handled in renderSessions)
+      // Hide comments form for non-attendees (handled in comments modal)
     });
   </script>
 </body>

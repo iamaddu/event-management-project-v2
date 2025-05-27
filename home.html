@@ -415,7 +415,7 @@
     <header>
         <div class="logo" role="banner" aria-label="EventSphere Logo">
           <i class="fas fa-calendar-alt" aria-hidden="true"></i>
-          <span>EventSphere</span>
+          <span>EventHub</span>
         </div>
         <div class="auth-buttons" id="authButtons">
           <a href="login.html" class="btn btn-outline" style="margin-right: 10px; text-decoration: none;" role="link" aria-label="Login">
@@ -433,22 +433,21 @@
         </div>
       </header>
 
-  <nav role="navigation" aria-label="Primary Navigation">
+  <nav id="main-nav" role="navigation" aria-label="Primary Navigation">
     <a href="event.html" class="active" aria-current="page"><i class="fas fa-calendar-day" aria-hidden="true"></i> Events</a>
     <a href="eventcategory.html"><i class="fas fa-tags" aria-hidden="true"></i> Categories</a>
     <a href="ticket.html"><i class="fas fa-ticket-alt" aria-hidden="true"></i> Tickets</a>
-    <a href="registration.html"><i class="fas fa-clipboard-list" aria-hidden="true"></i> Registrations</a>
     <a href="mytickets.html"><i class="fas fa-credit-card" aria-hidden="true"></i> Payments</a>
     <a href="session.html"><i class="fas fa-chalkboard-teacher" aria-hidden="true"></i> Sessions</a>
-    <a href="session.html"><i class="fas fa-microphone" aria-hidden="true"></i> Speakers</a>
+    <a href="speakers.html"><i class="fas fa-microphone" aria-hidden="true"></i> Speakers</a>
     <a href="notifications.html"><i class="fas fa-bell" aria-hidden="true"></i> Notifications</a>
   </nav>
 
   <div class="content" role="main">
     <div class="intro" tabindex="0">
-      <h2>Welcome to EventSphere</h2>
+      <h2>Welcome to EventHub</h2>
       <p>
-        At <strong>EventSphere</strong>, we're revolutionizing event management with cutting-edge technology and intuitive design. 
+        At <strong>EventHub</strong>, we're revolutionizing event management with cutting-edge technology and intuitive design. 
         Our platform transforms every gathering into an immersive, data-driven experience that delights both organizers and attendees.
       </p>
       <p>
@@ -475,7 +474,7 @@
   <footer role="contentinfo">
     <div class="footer-content">
       <div class="footer-section">
-        <h3>About EventSphere</h3>
+        <h3>About EventHub</h3>
         <p>Leading event management platform since 2020, trusted by organizations worldwide to create exceptional event experiences.</p>
         <div class="social-icons">
           <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
@@ -503,7 +502,7 @@
     </div>
     
     <div class="copyright">
-      &copy; 2025 EventSphere. All rights reserved. | <a href="#" aria-label="Privacy Policy">Privacy Policy</a> | <a href="#" aria-label="Terms of Service">Terms of Service</a>
+      &copy; 2025 EventHub. All rights reserved. | <a href="#" aria-label="Privacy Policy">Privacy Policy</a> | <a href="#" aria-label="Terms of Service">Terms of Service</a>
     </div>
   </footer>
 
@@ -541,6 +540,28 @@
 
       // --- Make home.html public: remove auth fetch and redirect ---
       loadingSpinner.style.display = 'none';
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const userType = localStorage.getItem('user_type');
+      const nav = document.getElementById('main-nav');
+      if (!nav) return;
+
+      // Remove any existing Registrations/Manage Registrations link
+      Array.from(nav.querySelectorAll('a')).forEach(a => {
+        const txt = a.textContent.trim().toLowerCase();
+        if (txt === 'registrations' || txt === 'manage registrations' ||
+            txt.includes('registrations')) {
+          a.remove();
+        }
+      });
+
+      // Add the correct Registrations link based on role
+      if (userType === 'admin' || userType === 'organizer') {
+        nav.innerHTML += `<a href="registrations.html"><i class="fas fa-clipboard-list"></i> Manage Registrations</a>`;
+      } else {
+        nav.innerHTML += `<a href="registration.html"><i class="fas fa-clipboard-list"></i> Registrations</a>`;
+      }
     });
   </script>
 </body>

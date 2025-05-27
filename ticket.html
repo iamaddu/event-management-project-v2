@@ -818,39 +818,15 @@ function authFetch(url, options = {}) {
 // Elements
 const eventSelect = document.getElementById('event-select');
 const ticketTypeSelect = document.getElementById('ticket-type');
-const ticketQuantitySelect = document.getElementById('ticket-quantity');
-const priceValueElements = document.querySelectorAll('.price-item .value');
-const totalPriceElement = document.querySelector('.total-price .value');
-const ticketVisualPrice = document.querySelector('.ticket-visual .price');
-const ticketVisualType = document.querySelector('.ticket-visual .ticket-type');
+let currentPrices = {};
+let eventData = {};
 
-// Store prices for the selected event
-let currentPrices = {
-  general: 0,
-  vip: 0,
-  student: 75, // Fixed price for student tickets
-  premium: 0
-};
-
-function updatePrices() {
-  const ticketType = ticketTypeSelect.value;
-  const quantity = parseInt(ticketQuantitySelect.value) || 1;
-  const price = currentPrices[ticketType] || 0;
-  const totalPrice = price * quantity;
-
-  // Update UI
-  priceValueElements[0].textContent = `$${price.toFixed(2)}`;
-  priceValueElements[1].textContent = `${quantity}`;
-  totalPriceElement.textContent = `$${totalPrice.toFixed(2)}`;
-  ticketVisualPrice.textContent = `$${totalPrice.toFixed(2)}`;
-  ticketVisualType.textContent = ticketType.charAt(0).toUpperCase() + ticketType.slice(1).replace('_', ' ');
-}
-
-// Fetch events and populate the dropdown
-fetch('/events')
+// Fetch events and populate the dropdown (already filtered by backend)
+authFetch('/events')
   .then((response) => response.json())
   .then((events) => {
     events.forEach((event) => {
+      eventData[event.id] = event;
       const option = document.createElement('option');
       option.value = event.id;
       option.textContent = `${event.title} - ${event.start ? new Date(event.start).toLocaleString() : 'N/A'}`;
@@ -863,37 +839,42 @@ fetch('/events')
     alert('Failed to load events. Please try again later.');
   });
 
-// When an event is selected, fetch its prices
+// When an event is selected, fetch ticket types/prices for this event
 eventSelect.addEventListener('change', function () {
   const selectedOption = this.options[this.selectedIndex];
   if (!selectedOption.value) {
-    // Reset fields
     document.getElementById('event-name').value = '';
     document.getElementById('venue').value = '';
     document.getElementById('date').value = '';
-    currentPrices = { general: 0, vip: 0, student: 75, premium: 0 };
+    ticketTypeSelect.innerHTML = `<option value="">Select Ticket Type</option>`;
+    currentPrices = {};
     updatePrices();
     return;
   }
   // Set event details
-  document.getElementById('event-name').value = selectedOption.textContent.split(' - ')[0];
-  document.getElementById('venue').value = selectedOption.dataset.venue || '';
-  document.getElementById('date').value = selectedOption.textContent.split(' - ')[1];
+  const event = eventData[selectedOption.value];
+  document.getElementById('event-name').value = event.title;
+  document.getElementById('venue').value = event.venue || '';
+  document.getElementById('date').value = event.start ? new Date(event.start).toLocaleString() : '';
 
-  // Fetch ticket prices for this event
-  fetch(`/events/${selectedOption.value}/ticket-prices`)
+  // Fetch ticket types/prices for this event
+  fetch(`/events/${selectedOption.value}/ticket-types`)
     .then(res => res.json())
-    .then(prices => {
-      currentPrices = {
-        general: parseFloat(prices.price_standard) || 0,
-        vip: parseFloat(prices.price_vip) || 0,
-        student: 75,
-        premium: parseFloat(prices.price_premium) || 0
-      };
+    .then(types => {
+      ticketTypeSelect.innerHTML = '';
+      currentPrices = {};
+      types.forEach(type => {
+        currentPrices[type.key] = type.price;
+        const opt = document.createElement('option');
+        opt.value = type.key;
+        opt.textContent = `${type.label} - $${type.price}`;
+        ticketTypeSelect.appendChild(opt);
+      });
       updatePrices();
     })
     .catch(() => {
-      currentPrices = { general: 0, vip: 0, student: 75, premium: 0 };
+      ticketTypeSelect.innerHTML = `<option value="">Select Ticket Type</option>`;
+      currentPrices = {};
       updatePrices();
     });
 });

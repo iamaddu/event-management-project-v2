@@ -479,6 +479,19 @@
       50% { transform: translateY(-20px) rotate(5deg); }
     }
 
+    /* Badge styles */
+    .badge {
+      display: inline-block;
+      padding: 0.3em 0.8em;
+      border-radius: 12px;
+      font-size: 0.85em;
+      font-weight: 600;
+      color: #fff;
+    }
+    .badge-active { background: #10b981; }
+    .badge-upcoming { background: #f59e0b; }
+    .badge-inactive { background: #ef4444; }
+
     /* Responsive styles */
     @media (max-width: 1024px) {
       .charts-grid {
@@ -531,7 +544,7 @@
 
   <!-- Header Section -->
   <header>
-    <h1>EventSphere</h1>
+    <h1>EventHub</h1>
   </header>
 
   <!-- Navigation Menu -->
@@ -579,9 +592,7 @@
           </div>
         </div>
         <div class="stat-value" id="totalEvents">0</div>
-        <div class="stat-change positive">
-          <i class="fas fa-arrow-up"></i> 12% from last period
-        </div>
+        <div class="stat-change positive" id="totalEventsChange"></div>
       </div>
       <div class="stat-card">
         <div class="stat-card-header">
@@ -591,9 +602,7 @@
           </div>
         </div>
         <div class="stat-value" id="totalAttendees">0</div>
-        <div class="stat-change positive">
-          <i class="fas fa-arrow-up"></i> 8% from last period
-        </div>
+        <div class="stat-change positive" id="totalAttendeesChange"></div>
       </div>
       <div class="stat-card">
         <div class="stat-card-header">
@@ -603,9 +612,7 @@
           </div>
         </div>
         <div class="stat-value" id="totalRevenue">₹0.00</div>
-        <div class="stat-change positive">
-          <i class="fas fa-arrow-up"></i> 15% from last period
-        </div>
+        <div class="stat-change positive" id="totalRevenueChange"></div>
       </div>
       <div class="stat-card">
         <div class="stat-card-header">
@@ -615,9 +622,7 @@
           </div>
         </div>
         <div class="stat-value" id="conversionRate">0%</div>
-        <div class="stat-change negative">
-          <i class="fas fa-arrow-down"></i> 2% from last period
-        </div>
+        <div class="stat-change negative" id="conversionRateChange"></div>
       </div>
     </div>
 
@@ -701,26 +706,22 @@
 
   <script>
     // Role-based access control for Analytics page
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
     fetch('/my-permissions', {
-      headers: {
-        'Authorization': 'Bearer ' + localStorage.getItem('token')
-      }
+      headers: { 'Authorization': 'Bearer ' + token }
     })
     .then(res => res.json())
     .then(data => {
-      // Only allow admin and organizer
       if (data.role !== 'admin' && data.role !== 'organizer') {
         if (data.role === 'attendee') window.location.href = '/attendee-dashboard.html';
         else if (data.role === 'vendor') window.location.href = '/vendor-dashboard.html';
         else if (data.role === 'speaker') window.location.href = '/session.html';
         else window.location.href = '/login.html';
-        return;
       }
-      // Optionally, you can use data.pages to show/hide analytics features
     })
-    .catch(() => {
-      window.location.href = '/login.html';
-    });
+    .catch(() => window.location.href = '/login.html');
 
     document.addEventListener('DOMContentLoaded', function () {
       const loadingOverlay = document.getElementById('loadingOverlay');
@@ -729,44 +730,56 @@
       const totalAttendees = document.getElementById('totalAttendees');
       const totalRevenue = document.getElementById('totalRevenue');
       const avgConversion = document.getElementById('conversionRate');
+      const timeRange = document.getElementById('timeRange');
+
+      const totalEventsChange = document.getElementById('totalEventsChange');
+      const totalAttendeesChange = document.getElementById('totalAttendeesChange');
+      const totalRevenueChange = document.getElementById('totalRevenueChange');
+      const conversionRateChange = document.getElementById('conversionRateChange');
+
+      let attendanceChart, revenueChart;
+
+      function percentChange(current, previous) {
+        if (previous === 0) return current === 0 ? 0 : 100;
+        return ((current - previous) / previous * 100).toFixed(1);
+      }
+
+      function updateStatCard(statElem, changeElem, value, change, isPositive, prefix = '', suffix = '') {
+        statElem.textContent = prefix + value + suffix;
+        changeElem.innerHTML = `<i class="fas fa-arrow-${isPositive ? 'up' : 'down'}"></i> ${Math.abs(change)}% from last period`;
+        changeElem.className = 'stat-change ' + (isPositive ? 'positive' : 'negative');
+      }
 
       function loadAnalyticsData() {
         if (loadingOverlay) loadingOverlay.style.display = 'flex';
-        fetch('/analytics', {
-          headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('token')
-          }
+        fetch(`/analytics?range=${timeRange.value}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
         })
-          .then((response) => {
-            if (!response.ok) throw new Error('Failed to fetch analytics data');
-            return response.json();
-          })
-          .then((data) => {
-            if (loadingOverlay) loadingOverlay.style.display = 'none';
-            processAnalyticsData(data);
-            renderCharts(data);
-            renderTicketTypeChart();
-            renderMonthlyChart();
-          })
-          .catch((error) => {
-            if (loadingOverlay) loadingOverlay.style.display = 'none';
-            alert('Failed to load analytics data. Please try again later.');
-            console.error(error);
-          });
+        .then((response) => {
+          if (!response.ok) throw new Error('Failed to fetch analytics data');
+          return response.json();
+        })
+        .then((data) => {
+          if (loadingOverlay) loadingOverlay.style.display = 'none';
+          // Data format: { current: {...}, previous: {...}, events: [...] }
+          const cur = data.current, prev = data.previous;
+          updateStatCard(totalEvents, totalEventsChange, cur.events, percentChange(cur.events, prev.events), cur.events >= prev.events);
+          updateStatCard(totalAttendees, totalAttendeesChange, cur.attendees, percentChange(cur.attendees, prev.attendees), cur.attendees >= prev.attendees);
+          updateStatCard(totalRevenue, totalRevenueChange, cur.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2 }), percentChange(cur.revenue, prev.revenue), cur.revenue >= prev.revenue, '₹');
+          updateStatCard(avgConversion, conversionRateChange, cur.conversion.toFixed(2), percentChange(cur.conversion, prev.conversion), cur.conversion >= prev.conversion, '', '%');
+          processAnalyticsData(data.events || []);
+          renderCharts(data.events || []);
+          renderTicketTypeChart();
+          renderMonthlyChart();
+        })
+        .catch((error) => {
+          if (loadingOverlay) loadingOverlay.style.display = 'none';
+          alert('Failed to load analytics data. Please try again later.');
+          console.error(error);
+        });
       }
 
       function processAnalyticsData(data) {
-        totalEvents.textContent = data.length;
-        let attendeesSum = 0, revenueSum = 0, conversionSum = 0;
-        data.forEach(ev => {
-          attendeesSum += Number(ev.attendee_count) || 0;
-          revenueSum += Number(ev.revenue) || 0;
-          conversionSum += Number(ev.conversion_rate) || 0;
-        });
-        totalAttendees.textContent = attendeesSum;
-        totalRevenue.textContent = '₹' + revenueSum.toLocaleString('en-IN', { minimumFractionDigits: 2 });
-        avgConversion.textContent = data.length ? (conversionSum / data.length).toFixed(2) + '%' : '0%';
-
         tableBody.innerHTML = '';
         if (!data.length) {
           tableBody.innerHTML = '<tr><td colspan="7">No event data found.</td></tr>';
@@ -792,8 +805,6 @@
           `;
         });
       }
-
-      let attendanceChart, revenueChart;
 
       function renderCharts(data) {
         // Attendance by Event (Bar Chart)
@@ -854,52 +865,51 @@
       function renderTicketTypeChart() {
         document.querySelector("#ticketTypeChart").innerHTML = "";
         fetch('/analytics/ticket-types', {
-          headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('token')
-          }
+          headers: { 'Authorization': 'Bearer ' + token }
         })
-          .then(res => res.json())
-          .then(data => {
-            const chart = new ApexCharts(document.querySelector("#ticketTypeChart"), {
-              chart: { type: 'donut', height: 300 },
-              series: data.map(t => t.count),
-              labels: data.map(t => t.type),
-              colors: ['#00c3ff', '#ff4d7d', '#10b981', '#f59e0b'],
-              legend: { labels: { colors: ['#f8fafc'] } }
-            });
-            chart.render();
+        .then(res => res.json())
+        .then(data => {
+          const chart = new ApexCharts(document.querySelector("#ticketTypeChart"), {
+            chart: { type: 'donut', height: 300 },
+            series: data.map(t => t.count),
+            labels: data.map(t => t.type),
+            colors: ['#00c3ff', '#ff4d7d', '#10b981', '#f59e0b'],
+            legend: { labels: { colors: ['#f8fafc'] } }
           });
+          chart.render();
+        });
       }
 
       // Monthly Performance (Bar Chart)
       function renderMonthlyChart() {
         document.querySelector("#monthlyChart").innerHTML = "";
         fetch('/analytics/monthly-performance', {
-          headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('token')
-          }
+          headers: { 'Authorization': 'Bearer ' + token }
         })
-          .then(res => res.json())
-          .then(data => {
-            const chart = new ApexCharts(document.querySelector("#monthlyChart"), {
-              chart: { type: 'bar', height: 300 },
-              series: [
-                { name: 'Revenue', data: data.map(m => m.revenue) },
-                { name: 'Attendees', data: data.map(m => m.attendees) }
-              ],
-              xaxis: { categories: data.map(m => m.month), labels: { style: { colors: '#f8fafc' } } },
-              yaxis: { labels: { style: { colors: '#f8fafc' } } },
-              colors: ['#00c3ff', '#10b981'],
-              legend: { labels: { colors: ['#f8fafc'] } }
-            });
-            chart.render();
+        .then(res => res.json())
+        .then(data => {
+          const chart = new ApexCharts(document.querySelector("#monthlyChart"), {
+            chart: { type: 'bar', height: 300 },
+            series: [
+              { name: 'Revenue', data: data.map(m => m.revenue) },
+              { name: 'Attendees', data: data.map(m => m.attendees) }
+            ],
+            xaxis: { categories: data.map(m => m.month), labels: { style: { colors: '#f8fafc' } } },
+            yaxis: { labels: { style: { colors: '#f8fafc' } } },
+            colors: ['#00c3ff', '#10b981'],
+            legend: { labels: { colors: ['#f8fafc'] } }
           });
+          chart.render();
+        });
       }
 
       // Initial load
       loadAnalyticsData();
       // Refresh every minute
       setInterval(loadAnalyticsData, 60000);
+
+      // Time range change
+      timeRange.addEventListener('change', loadAnalyticsData);
     });
   </script>
 </body>

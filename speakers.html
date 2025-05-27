@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Speakers - EventSphere</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    body { font-family: 'Poppins', sans-serif; background: #222; color: #fff; }
+    .speaker-card { background: #333; border-radius: 10px; padding: 20px; margin: 20px 0; }
+    .speaker-photo { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; }
+  </style>
+</head>
+<body>
+  <h1>Speakers</h1>
+  <div id="speakers-list"></div>
+  <script>
+    fetch('/speakers').then(res => res.json()).then(speakers => {
+      document.getElementById('speakers-list').innerHTML = speakers.map(s =>
+        `<div class="speaker-card">
+          <img src="${s.photo || 'https://via.placeholder.com/80'}" class="speaker-photo" />
+          <b>${s.first_name} ${s.last_name} (${s.username})</b><br>
+          <i>${s.email}</i><br>
+          <p>${s.bio || ''}</p>
+        </div>`
+      ).join('');
+    });
+  </script>
+</body>
+</html>

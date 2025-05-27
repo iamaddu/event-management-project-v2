@@ -925,7 +925,7 @@
   <header>
     <a href="home.html" class="logo">
       <i class="fas fa-calendar-alt"></i>
-      EventSphere
+      EventHub
     </a>
     <nav>
       <a href="event.html" class="active"><i class="fas fa-calendar-day"></i> Events</a>
@@ -1100,10 +1100,43 @@
           <label for="updateImageURL">Image URL</label>
           <input type="url" id="updateImageURL">
         </div>
+        <div class="form-group">
+          <label for="eventType">Event Type</label>
+          <select id="eventType" name="event_type" required>
+            <option value="free">Free</option>
+            <option value="paid">Paid</option>
+            <option value="fcfs">First-Come-First-Serve</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="maxParticipants">Max Participants (for FCFS)</label>
+          <input type="number" id="maxParticipants" name="max_participants" min="1">
+        </div>
         <div class="form-actions">
           <button type="button" class="cancel-btn" id="cancelUpdate">Cancel</button>
           <button type="submit" class="submit-btn">Save Changes</button>
         </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Event Comments Modal -->
+  <div id="eventCommentsModal" class="modal" style="display:none;">
+    <div class="update-form" style="max-width:600px;">
+      <button class="close-modal" id="closeEventCommentsModal" aria-label="Close comments modal">&times;</button>
+      <h2 class="form-title">Event Comments & Ratings</h2>
+      <div id="eventCommentsList"></div>
+      <form id="addEventCommentForm" style="margin-top:15px;">
+        <textarea id="eventCommentText" required placeholder="Add your comment"></textarea>
+        <select id="eventCommentRating" required>
+          <option value="">Rating</option>
+          <option value="5">5 - Excellent</option>
+          <option value="4">4 - Good</option>
+          <option value="3">3 - Average</option>
+          <option value="2">2 - Poor</option>
+          <option value="1">1 - Bad</option>
+        </select>
+        <button type="submit" class="btn-primary">Submit</button>
       </form>
     </div>
   </div>
@@ -1178,6 +1211,7 @@
       let events = [];
       let categories = [];
       let userRegistrations = new Set();
+      let currentEventIdForComments = null;
 
       // Category images mapping
       const categoryImages = {
@@ -1257,38 +1291,19 @@
 
       // Fetch events from backend
       async function fetchEvents() {
-        try {
-          const response = await fetch('/events');
-          if (!response.ok) throw new Error('Failed to fetch events');
-          let allEvents = await response.json();
-
-          // RBAC: Filter events for organizer, speaker, vendor
-          if (window.userRole === 'organizer' && window.onlyOwnEvents) {
-            const userId = localStorage.getItem('user_id');
-            allEvents = allEvents.filter(ev => String(ev.organizer_id) === String(userId));
-          }
-          if (window.userRole === 'speaker') {
-            // Assuming event.speakers is an array of user IDs
-            const userId = localStorage.getItem('user_id');
-            allEvents = allEvents.filter(ev => Array.isArray(ev.speakers) && ev.speakers.includes(userId));
-          }
-          if (window.userRole === 'vendor') {
-            // Assuming event.vendors is an array of user IDs
-            const userId = localStorage.getItem('user_id');
-            allEvents = allEvents.filter(ev => Array.isArray(ev.vendors) && ev.vendors.includes(userId));
-          }
-
-          events = allEvents;
-          renderEvents(events);
-        } catch (err) {
-          console.error('Error fetching events:', err);
-          eventsContainer.innerHTML = `
-            <div class="empty-state">
-              <i class="fas fa-exclamation-circle"></i>
-              <p>Failed to load events. Please try again later.</p>
-            </div>
-          `;
+        let url = '/events';
+        // Use the RBAC role set earlier
+        if (window.userRole === 'organizer') {
+          url = '/my-events';
         }
+        const response = await fetch(url, {
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+        });
+        if (!response.ok) throw new Error('Failed to fetch events');
+        events = await response.json();
+
+        // No need to filter again for organizer, backend already does it
+        renderEvents(events);
       }
 
       // Fetch user registrations to mark registered events
@@ -1333,22 +1348,28 @@
         eventList.forEach(event => {
           const eventDate = new Date(event.start_time || event.start || new Date());
           const now = new Date();
-          
-          // Determine registration button state
+
+          // --- Registration Button Logic ---
           let registrationButton = '';
-          if (userRegistrations.has(event.id)) {
+          // Hide registration button for organizers on their own events
+          if (
+            (window.userRole === 'organizer' && String(event.organizer) === String(localStorage.getItem('user_id')))
+            || window.userRole === 'admin'
+          ) {
+            registrationButton = ''; // Organizer/admin: no registration button
+          } else if (userRegistrations.has(event.id)) {
             registrationButton = '<button class="register-btn" disabled>Registered</button>';
           } else if (eventDate < now) {
             registrationButton = '<button class="register-btn" disabled>Event Ended</button>';
           } else {
             registrationButton = `<button class="register-btn" data-event-id="${event.id}">Register Now</button>`;
           }
-          
-          // Only show update/delete for admin or organizer (and only for their own events)
+
+          // --- Update/Delete Buttons ---
           let updateDeleteButtons = '';
           if (
             window.userRole === 'admin' ||
-            (window.userRole === 'organizer' && String(event.organizer_id) === String(localStorage.getItem('user_id')))
+            (window.userRole === 'organizer' && String(event.organizer) === String(localStorage.getItem('user_id')))
           ) {
             updateDeleteButtons = `
               <button class="update-btn" data-event-id="${event.id}">Update</button>
@@ -1356,9 +1377,15 @@
             `;
           }
 
-          // Create event card
+          // --- Event Card ---
           const card = document.createElement('div');
           card.className = 'event-card';
+          let favButton = '';
+          if (window.userRole === 'attendee' || window.userRole === 'user') {
+            favButton = `<button onclick="addToFavs(${event.id})" class="add-to-favorites">
+              Add to Favorites <i class='fas fa-heart'></i>
+            </button>`;
+          }
           card.innerHTML = `
             ${userRegistrations.has(event.id) ? '<div class="registered-badge">Registered</div>' : ''}
             <img src="${event.image_url || event.image || categoryImages[event.category_id] || categoryImages.default}" 
@@ -1375,31 +1402,16 @@
                 <button class="view-details" data-event-id="${event.id}">View Details</button>
                 ${updateDeleteButtons}
                 ${registrationButton}
+                <button class="event-comments-btn" data-id="${event.id}"><i class="fas fa-comments"></i> Comments</button>
               </div>
             </div>
+            ${favButton}
           `;
           eventsContainer.appendChild(card);
         });
 
         // Add event listeners for buttons
         setupCardEventListeners();
-      }
-
-      // Setup event listeners for card buttons
-      function setupCardEventListeners() {
-        document.querySelectorAll('.view-details').forEach(button => {
-          button.addEventListener('click', (e) => {
-            const eventId = e.target.getAttribute('data-event-id');
-            openEventModal(eventId);
-          });
-        });
-
-        document.querySelectorAll('.register-btn:not([disabled])').forEach(button => {
-          button.addEventListener('click', (e) => {
-            const eventId = e.target.getAttribute('data-event-id');
-            openRegistrationModal(eventId);
-          });
-        });
       }
 
       // Open event details modal
@@ -1436,38 +1448,39 @@
 
         eventModal.classList.add('show');
       }
-function openRegistrationModal(eventId) {
-  // Prevent opening registration if already registered
-  if (userRegistrations.has(eventId)) {
-    alert('You have already registered for this event.');
-    return;
-  }
-  const selectedEvent = events.find(ev => ev.id == eventId);
-  if (!selectedEvent) return;
 
-  currentEvent = selectedEvent;
-  registerEventTitle.textContent = selectedEvent.title;
-  document.getElementById('eventId').value = selectedEvent.id;
-  
-  // Update ticket options based on event prices
-  const ticketTypeSelect = document.getElementById('ticketType');
-  ticketTypeSelect.innerHTML = '<option value="">Select Ticket</option>';
-  
-  if (selectedEvent.price_standard) {
-    ticketTypeSelect.innerHTML += `<option value="standard">Standard - $${selectedEvent.price_standard.toFixed(2)}</option>`;
-  }
-  if (selectedEvent.price_vip) {
-    ticketTypeSelect.innerHTML += `<option value="vip">VIP - $${selectedEvent.price_vip.toFixed(2)}</option>`;
-  }
-  if (selectedEvent.price_premium) {
-    ticketTypeSelect.innerHTML += `<option value="premium">Premium - $${selectedEvent.price_premium.toFixed(2)}</option>`;
-  }
-  if (!selectedEvent.price_standard && !selectedEvent.price_vip && !selectedEvent.price_premium) {
-    ticketTypeSelect.innerHTML += '<option value="free">Free Admission</option>';
-  }
+      function openRegistrationModal(eventId) {
+        // Prevent opening registration if already registered
+        if (userRegistrations.has(eventId)) {
+          alert('You have already registered for this event.');
+          return;
+        }
+        const selectedEvent = events.find(ev => ev.id == eventId);
+        if (!selectedEvent) return;
 
-  registrationModal.classList.add('show');
-}
+        currentEvent = selectedEvent;
+        registerEventTitle.textContent = selectedEvent.title;
+        document.getElementById('eventId').value = selectedEvent.id;
+        
+        // Update ticket options based on event prices
+        const ticketTypeSelect = document.getElementById('ticketType');
+        ticketTypeSelect.innerHTML = '<option value="">Select Ticket</option>';
+        
+        if (selectedEvent.price_standard) {
+          ticketTypeSelect.innerHTML += `<option value="standard">Standard - $${selectedEvent.price_standard.toFixed(2)}</option>`;
+        }
+        if (selectedEvent.price_vip) {
+          ticketTypeSelect.innerHTML += `<option value="vip">VIP - $${selectedEvent.price_vip.toFixed(2)}</option>`;
+        }
+        if (selectedEvent.price_premium) {
+          ticketTypeSelect.innerHTML += `<option value="premium">Premium - $${selectedEvent.price_premium.toFixed(2)}</option>`;
+        }
+        if (!selectedEvent.price_standard && !selectedEvent.price_vip && !selectedEvent.price_premium) {
+          ticketTypeSelect.innerHTML += '<option value="free">Free Admission</option>';
+        }
+
+        registrationModal.classList.add('show');
+      }
 
       // Open update modal with event data
       function openUpdateModal(eventData) {
@@ -1550,6 +1563,63 @@ function openRegistrationModal(eventId) {
         updateModal.classList.add('show');
       }
 
+      // Open event comments modal
+      function openEventCommentsModal(eventId) {
+        currentEventIdForComments = eventId;
+        document.getElementById('eventCommentsModal').style.display = 'block';
+        loadEventComments(eventId);
+        // Only attendees can add comments
+        document.getElementById('addEventCommentForm').style.display = (window.userRole === 'attendee') ? 'block' : 'none';
+      }
+
+      // Close event comments modal
+      document.getElementById('closeEventCommentsModal').onclick = function() {
+        document.getElementById('eventCommentsModal').style.display = 'none';
+      };
+
+      // Load event comments
+      function loadEventComments(eventId) {
+        fetch(`/events/${eventId}/comments`)
+          .then(res => res.json())
+          .then(comments => {
+            const list = document.getElementById('eventCommentsList');
+            list.innerHTML = comments.length
+              ? comments.map(c =>
+                  `<div style="margin-bottom:10px;">
+                    <b>${c.username}</b> <span style="color:gold;">${'★'.repeat(c.rating)}${'☆'.repeat(5-c.rating)}</span>
+                    <div>${c.comment}</div>
+                    <span style="color:#aaa;font-size:12px;">${new Date(c.created_at).toLocaleString()}</span>
+                  </div>`
+//# sourceMappingURL=event.html.map
+                ).join('')
+              : '<div>No comments yet.</div>';
+          });
+      }
+
+      // Add event comment
+      document.getElementById('addEventCommentForm').onsubmit = function(e) {
+        e.preventDefault();
+        const comment = document.getElementById('eventCommentText').value;
+        const rating = document.getElementById('eventCommentRating').value;
+        fetch(`/events/${currentEventIdForComments}/comment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
+          },
+          body: JSON.stringify({ comment, rating })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            document.getElementById('addEventCommentForm').reset();
+            loadEventComments(currentEventIdForComments);
+          } else {
+            alert(data.error || 'Failed to add comment');
+          }
+        });
+      };
+
       // Setup event listeners
       function setupEventListeners() {
         // Close modals
@@ -1595,152 +1665,186 @@ function openRegistrationModal(eventId) {
           if (e.target === updateModal) {
             updateModal.classList.remove('show');
           }
+          if (e.target === document.getElementById('eventCommentsModal')) {
+            document.getElementById('eventCommentsModal').style.display = 'none';
+          }
         });
 
-        // Handle registration form submission
-        registrationForm.addEventListener('submit', async (e) => {
-          e.preventDefault();
+          // Handle registration form submission
+          registrationForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
 
-          if (!currentEvent) {
-            alert('No event selected for registration.');
-            return;
-          }
-
-          const submitBtn = registrationForm.querySelector('button[type="submit"]');
-          const originalBtnText = submitBtn.textContent;
-          submitBtn.disabled = true;
-          submitBtn.innerHTML = 'Processing <span class="loading-spinner"></span>';
-
-          const fullName = document.getElementById('fullName').value.trim();
-          const email = document.getElementById('email').value.trim();
-          const phone = document.getElementById('phone').value.trim();
-          const ticketType = document.getElementById('ticketType').value;
-          const quantity = parseInt(document.getElementById('quantity').value);
-
-          if (!fullName || !email || !phone || !ticketType || !quantity) {
-            alert('Please fill in all required fields.');
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalBtnText;
-            return;
-          }
-
-          // Split fullName into first_name and last_name
-          const nameParts = fullName.split(' ');
-          const first_name = nameParts[0];
-          const last_name = nameParts.slice(1).join(' ') || '';
-
-          // Prepare registration data
-          const registrationData = {
-            first_name: first_name,
-            last_name: last_name,
-            email: email,
-            phone: phone,
-            event_id: currentEvent.id,
-            ticket_type: ticketType,
-            quantity: quantity,
-            status: 'Registered'
-          };
-
-          try {
-            const response = await fetch('/attendees', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
-              },
-              body: JSON.stringify(registrationData)
-            });
-
-            if (!response.ok) {
-              throw new Error(await response.text() || 'Registration failed');
+            if (!currentEvent) {
+              alert('No event selected for registration.');
+              return;
             }
 
-            const data = await response.json();
-            alert('Registration successful!');
-            registrationModal.classList.remove('show');
-            registrationForm.reset();
-            await fetchUserRegistrations();
-            renderEvents(events);
-          } catch (error) {
-            alert('Error: ' + error.message);
-          } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalBtnText;
-          }
-        });
+            const submitBtn = registrationForm.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Processing <span class="loading-spinner"></span>';
 
-        // Handle update form submission
-        updateForm.addEventListener('submit', async (e) => {
-          e.preventDefault();
+            const fullName = document.getElementById('fullName').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const ticketType = document.getElementById('ticketType').value;
+            const quantity = parseInt(document.getElementById('quantity').value);
 
-          const submitBtn = updateForm.querySelector('button[type="submit"]');
-          const originalBtnText = submitBtn.textContent;
-          submitBtn.disabled = true;
-          submitBtn.innerHTML = 'Saving <span class="loading-spinner"></span>';
-
-          const eventId = document.getElementById('updateEventId').value;
-          const title = document.getElementById('updateTitle').value.trim();
-          const description = document.getElementById('updateDescription').value.trim();
-          const location = document.getElementById('updateLocation').value.trim();
-          const categoryId = document.getElementById('updateCategory').value;
-          const date = document.getElementById('updateDate').value;
-          const startTime = document.getElementById('updateStartTime').value;
-          const endTime = document.getElementById('updateEndTime').value;
-          const capacity = parseInt(document.getElementById('updateCapacity').value);
-          const priceStandard = parseFloat(document.getElementById('updatePriceStandard').value);
-          const pricePremium = parseFloat(document.getElementById('updatePricePremium').value);
-          const imageURL = document.getElementById('updateImageURL').value.trim();
-
-          if (!title || !description || !location || !categoryId || !date || !startTime || !capacity) {
-            alert('Please fill in all required fields.');
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalBtnText;
-            return;
-          }
-
-          // Combine date and time
-          const startDateTime = new Date(`${date}T${startTime}`);
-          const endDateTime = endTime ? new Date(`${date}T${endTime}`) : null;
-
-          // Prepare update data
-          const updateData = {
-            title: title,
-            description: description,
-            location: location,
-            category_id: parseInt(categoryId),
-            start_time: startDateTime.toISOString(),
-            end_time: endDateTime ? endDateTime.toISOString() : null,
-            capacity: capacity,
-            price_standard: priceStandard,
-            price_premium: pricePremium,
-            image_url: imageURL || null
-          };
-
-          try {
-            const response = await fetch(`/events/${eventId}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + localStorage.getItem('token')
-              },
-              body: JSON.stringify(updateData)
-            });
-
-            if (!response.ok) {
-              throw new Error(await response.text() || 'Update failed');
+            if (!fullName || !email || !phone || !ticketType || !quantity) {
+              alert('Please fill in all required fields.');
+              submitBtn.disabled = false;
+              submitBtn.textContent = originalBtnText;
+              return;
             }
 
-            const data = await response.json();
-            alert('Event updated successfully!');
-            updateModal.classList.remove('show');
-            await fetchEvents();
-          } catch (error) {
-            alert('Error: ' + error.message);
-          } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalBtnText;
-          }
-        });
+            // Split fullName into first_name and last_name
+            const nameParts = fullName.split(' ');
+            const first_name = nameParts[0];
+            const last_name = nameParts.slice(1).join(' ') || '';
+
+            // Determine ticket price based on ticketType
+            let ticketPrice = 0;
+            switch (ticketType) {
+              case 'standard':
+                ticketPrice = currentEvent.price_standard || 0;
+                break;
+              case 'vip':
+                ticketPrice = currentEvent.price_vip || 0;
+                break;
+              case 'premium':
+                ticketPrice = currentEvent.price_premium || 0;
+                break;
+              case 'free':
+                ticketPrice = 0;
+                break;
+              default:
+                ticketPrice = 0;
+            }
+
+            const totalPrice = ticketPrice * quantity;
+
+            // Prepare purchase data
+            const purchaseData = {
+              event_id: currentEvent.id,
+              ticket_type: ticketType,
+              quantity: quantity,
+              total_price: totalPrice,
+              payment_method: 'N/A' // Placeholder, update if payment integration added
+            };
+
+            try {
+              const response = await fetch('/purchase-ticket', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'Bearer ' + localStorage.getItem('token')
+                },
+                body: JSON.stringify(purchaseData)
+              });
+
+              if (!response.ok) {
+                throw new Error(await response.text() || 'Purchase failed');
+              }
+
+              const data = await response.json();
+              alert('Registration and purchase successful!');
+              registrationModal.classList.remove('show');
+              registrationForm.reset();
+              await fetchUserRegistrations();
+              renderEvents(events);
+            } catch (error) {
+              alert('Error: ' + error.message);
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.textContent = originalBtnText;
+            }
+          });
+
+          // Handle update form submission
+          updateForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const submitBtn = updateForm.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Saving <span class="loading-spinner"></span>';
+
+            const eventId = document.getElementById('updateEventId').value;
+            const title = document.getElementById('updateTitle').value.trim();
+            const description = document.getElementById('updateDescription').value.trim();
+            const location = document.getElementById('updateLocation').value.trim();
+            const categoryId = document.getElementById('updateCategory').value;
+            const date = document.getElementById('updateDate').value;
+            const startTime = document.getElementById('updateStartTime').value;
+            const endTime = document.getElementById('updateEndTime').value;
+            const capacity = parseInt(document.getElementById('updateCapacity').value);
+            const priceStandard = parseFloat(document.getElementById('updatePriceStandard').value);
+            const pricePremium = parseFloat(document.getElementById('updatePricePremium').value);
+            const imageURL = document.getElementById('updateImageURL').value.trim();
+            const eventType = document.getElementById('eventType').value;
+            const maxParticipants = parseInt(document.getElementById('maxParticipants').value) || null;
+
+            if (!title || !description || !location || !categoryId || !date || !startTime || !capacity) {
+              alert('Please fill in all required fields.');
+              submitBtn.disabled = false;
+              submitBtn.textContent = originalBtnText;
+              return;
+            }
+
+            // Combine date and time into MySQL datetime string format
+            function toMySQLDateTime(dateStr, timeStr) {
+              if (!dateStr || !timeStr) return null;
+              // Ensure timeStr has seconds
+              if (/^\d{2}:\d{2}$/.test(timeStr)) {
+                timeStr += ':00';
+              }
+              return `${dateStr} ${timeStr}`;
+            }
+
+            const startDateTime = toMySQLDateTime(date, startTime);
+            const endDateTime = endTime ? toMySQLDateTime(date, endTime) : null;
+
+            // Prepare update data with keys matching backend expectations
+            const updateData = {
+              title: title,
+              description: description,
+              location: location,
+              category_id: parseInt(categoryId),
+              start: startDateTime,
+              end: endDateTime,
+              capacity: capacity,
+              price_standard: priceStandard,
+              price_premium: pricePremium,
+              image: imageURL || null,
+              event_type: eventType,
+              max_participants: maxParticipants
+            };
+
+            try {
+              const response = await fetch(`/events/${eventId}`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'Bearer ' + localStorage.getItem('token')
+                },
+                body: JSON.stringify(updateData)
+              });
+
+              if (!response.ok) {
+                throw new Error(await response.text() || 'Update failed');
+              }
+
+              const data = await response.json();
+              alert('Event updated successfully!');
+              updateModal.classList.remove('show');
+              await fetchEvents();
+            } catch (error) {
+              alert('Error: ' + error.message);
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.textContent = originalBtnText;
+            }
+          });
 
         // Search functionality
         searchBtn.addEventListener('click', () => {
@@ -1837,9 +1941,82 @@ function openRegistrationModal(eventId) {
       // RBAC: Only allow admin or organizer to update/delete events
       const userType = localStorage.getItem('user_type');
 
+      // Example: Render event card with correct button
+function renderEventCard(event) {
+  let buttonHtml = '';
+  if (event.event_type === 'free') {
+    buttonHtml = `<button class="register-btn" data-id="${event.id}">Register Free</button>`;
+  } else if (event.event_type === 'paid') {
+    buttonHtml = `<button class="buy-btn" data-id="${event.id}">Buy Ticket</button>`;
+  } else if (event.event_type === 'fcfs') {
+    const spotsLeft = event.max_participants - (event.current_participants || 0);
+    buttonHtml = `<button class="fcfs-btn" data-id="${event.id}" ${spotsLeft <= 0 ? 'disabled' : ''}>Register (FCFS)</button>
+      <span class="spots-left">${spotsLeft > 0 ? spotsLeft + ' spots left' : 'Full'}</span>`;
+  }
+  // ...render the rest of the card with buttonHtml...
+}
+
       // Initialize the app
       init();
     });
+
+    document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('register-btn')) {
+    showRegistrationForm('free', e.target.dataset.id);
+  }
+  if (e.target.classList.contains('buy-btn')) {
+    showRegistrationForm('paid', e.target.dataset.id);
+  }
+  if (e.target.classList.contains('fcfs-btn')) {
+    showRegistrationForm('fcfs', e.target.dataset.id);
+  }
+});
+
+function showRegistrationForm(type, eventId) {
+  // Show/hide payment fields based on type
+  if (type === 'paid') {
+    document.getElementById('paymentSection').style.display = 'block';
+  } else {
+    document.getElementById('paymentSection').style.display = 'none';
+  }
+  // Set hidden eventId field, etc.
+  document.getElementById('eventIdInput').value = eventId;
+  // Show modal
+  document.getElementById('registrationModal').style.display = 'block';
+}
+function addToFavs(event_id) {
+  fetch('/favorites', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+    body: JSON.stringify({ event_id })
+  }).then(() => alert('Added to favorites!'));
+}
+
+function setupCardEventListeners() {
+  // View Details
+  document.querySelectorAll('.view-details').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const eventId = button.getAttribute('data-event-id');
+      openEventModal(eventId);
+    });
+  });
+
+  // Register Now
+  document.querySelectorAll('.register-btn:not([disabled])').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const eventId = button.getAttribute('data-event-id');
+      openRegistrationModal(eventId);
+    });
+  });
+
+  // Comments
+  document.querySelectorAll('.event-comments-btn').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const eventId = button.getAttribute('data-id');
+      openEventCommentsModal(eventId);
+    });
+  });
+}
   </script>
 </body>
 </html>
