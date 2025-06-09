@@ -646,6 +646,10 @@
     <a href="myregistration.html" class="btn btn-primary" style="margin: 20px 0; display: inline-block;">
       <i class="fas fa-list"></i> My Registrations
     </a>
+
+    <!-- FCFS Events Section (Newly Added) -->
+    <h2 class="section-title"><i class="fas fa-clock"></i> First-Come, First-Served Events</h2>
+    <div id="fcfsEvents"></div>
   </div>
   
   <footer>
@@ -862,7 +866,10 @@
     // Fetch and render upcoming events in the #upcomingEvents div
     async function fetchAndRenderUpcomingEvents() {
       try {
-        const res = await fetch('/events');
+        const token = localStorage.getItem('token');
+        const res = await fetch('/events', {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
         if (!res.ok) throw new Error('Failed to fetch events');
         const events = await res.json();
         const upcomingEventsDiv = document.getElementById('upcomingEvents');
@@ -1013,7 +1020,43 @@
       await initRegistrationPage();
     });
 
+    // Only show FCFS events (no ticket price)
+    fetch('/fcfs-events', {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+    })
+      .then(res => res.json())
+      .then(events => {
+        // Render your events here
+        renderEvents(events);
+      });
     
+    // registration.html
+    document.addEventListener('DOMContentLoaded', function() {
+      const token = localStorage.getItem('token');
+      fetch('/fcfs-events', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+        .then(res => res.json())
+        .then(events => {
+          const container = document.getElementById('fcfsEvents');
+          container.innerHTML = '';
+          events.forEach(event => {
+            const div = document.createElement('div');
+            div.innerHTML = `
+              <h3>${event.title}</h3>
+              <p>${event.description}</p>
+              <button onclick="registerEvent(${event.id})">Register</button>
+              <hr>
+            `;
+            container.appendChild(div);
+          });
+        });
+    });
+
+    function registerEvent(eventId) {
+      // Show your registration modal/form here
+      alert('Implement registration for event ID: ' + eventId);
+    }
   </script>
 </body>
 </html>

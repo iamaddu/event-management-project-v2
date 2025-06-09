@@ -644,53 +644,18 @@ function authFetch(url, options = {}) {
   return fetch(url, options);
 }
 
-// RBAC: Show user info and restrict access based on user_type
-document.addEventListener('DOMContentLoaded', function() {
-  const userName = localStorage.getItem('user_name');
-  const userType = localStorage.getItem('user_type');
-  const userRBAC = document.getElementById('user-rbac');
-  if (userRBAC) {
-    if (userName) {
-      userRBAC.innerHTML = `<span style="color:var(--primary);font-weight:bold;">Welcome, ${userName}</span>
-        <span style="color:var(--gray);font-size:13px;margin-left:8px;">(${userType || 'user'})</span>
-        <button id="logoutBtn" style="margin-left:15px;padding:4px 12px;border-radius:6px;border:none;background:var(--error);color:#fff;cursor:pointer;">Logout</button>`;
-    } else {
-      userRBAC.innerHTML = `<a href="login.html" class="explore-btn" style="padding:6px 18px;">Login</a>`;
-    }
-  }
-  // Logout logic
-  const logoutBtn = document.getElementById('logoutBtn');
-  if (logoutBtn) {
-    logoutBtn.onclick = () => {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user_type');
-      localStorage.removeItem('user_name');
-      window.location.href = 'login.html';
-    };
-  }
-  // RBAC: Only allow "user", "attendee", or "admin" to access, else redirect
-  if (!userType || !['user', 'attendee', 'admin'].includes(userType)) {
-    alert('You do not have permission to access this page.');
-    window.location.href = 'home.html';
-  }
-});
-
 let allTickets = [];
 
 function renderTickets(tickets) {
   const ticketsTableBody = document.getElementById('ticketsTableBody');
   const noTicketsDiv = document.querySelector('.no-tickets');
-
-  // Clear any existing rows
   ticketsTableBody.innerHTML = '';
-
-  if (tickets.length === 0) {
+  if (!tickets || tickets.length === 0) {
     noTicketsDiv.style.display = 'block';
     return;
   } else {
     noTicketsDiv.style.display = 'none';
   }
-
   tickets.forEach(ticket => {
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -701,13 +666,13 @@ function renderTickets(tickets) {
       <td>$${parseFloat(ticket.total_price).toFixed(2)}</td>
       <td>
         <span class="ticket-status status-${ticket.status}">
-          ${ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+          ${ticket.status ? ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1) : 'Active'}
         </span>
       </td>
       <td>
-        <button class="action-btn view" onclick="viewTicket(${ticket.id})"><i class="fas fa-eye"></i></button>
-        <button class="action-btn download" onclick="downloadTicket(${ticket.id})"><i class="fas fa-download"></i></button>
-        ${ticket.status !== 'cancelled' ? `<button class="action-btn cancel" onclick="cancelPurchase(${ticket.id})"><i class="fas fa-times"></i></button>` : ''}
+        <button class="action-btn view" data-id="${ticket.id}"><i class="fas fa-eye"></i></button>
+        <button class="action-btn download" data-id="${ticket.id}"><i class="fas fa-download"></i></button>
+        ${ticket.status !== 'cancelled' ? `<button class="action-btn cancel" data-id="${ticket.id}"><i class="fas fa-times"></i></button>` : ''}
       </td>
     `;
     ticketsTableBody.appendChild(row);
@@ -715,7 +680,7 @@ function renderTickets(tickets) {
 }
 
 function fetchTickets() {
-  authFetch('/my-registrations?' + new Date().getTime())
+  authFetch('/my-tickets')
     .then(response => {
       if (!response.ok) {
         return response.json().then(err => { throw new Error(err.error || 'Failed to fetch tickets'); });
@@ -743,7 +708,6 @@ function cancelPurchase(purchaseId) {
     })
     .then(result => {
       alert(result.message);
-      // Refresh the tickets list after cancellation
       fetchTickets();
     })
     .catch(error => {
@@ -752,7 +716,6 @@ function cancelPurchase(purchaseId) {
     });
 }
 
-// Stub functions for view and download actions
 function viewTicket(id) {
   alert(`View ticket: ${id}`);
 }
@@ -761,8 +724,38 @@ function downloadTicket(id) {
   alert(`Download ticket: ${id}`);
 }
 
-// Filter logic
 document.addEventListener('DOMContentLoaded', function() {
+  // RBAC: Only allow "user", "attendee", or "admin" to access, else redirect
+  const userType = localStorage.getItem('user_type');
+  if (!userType || !['user', 'attendee', 'admin'].includes(userType)) {
+    alert('You do not have permission to access this page.');
+    window.location.href = 'home.html';
+    return;
+  }
+
+  // Show user info
+  const userName = localStorage.getItem('user_name');
+  const userRBAC = document.getElementById('user-rbac');
+  if (userRBAC) {
+    if (userName) {
+      userRBAC.innerHTML = `<span style="color:var(--primary);font-weight:bold;">Welcome, ${userName}</span>
+        <span style="color:var(--gray);font-size:13px;margin-left:8px;">(${userType || 'user'})</span>
+        <button id="logoutBtn" style="margin-left:15px;padding:4px 12px;border-radius:6px;border:none;background:var(--error);color:#fff;cursor:pointer;">Logout</button>`;
+    } else {
+      userRBAC.innerHTML = `<a href="login.html" class="explore-btn" style="padding:6px 18px;">Login</a>`;
+    }
+  }
+  // Logout logic
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.onclick = () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user_type');
+      localStorage.removeItem('user_name');
+      window.location.href = 'login.html';
+    };
+  }
+
   fetchTickets();
 
   // Filter buttons
@@ -806,6 +799,22 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelector('.explore-btn').addEventListener('click', function() {
     window.location.href = 'event.html';
   });
+
+  // Delegated event listeners for action buttons
+  document.getElementById('ticketsTableBody').addEventListener('click', function(e) {
+    if (e.target.closest('.action-btn.view')) {
+      const id = e.target.closest('.action-btn.view').dataset.id;
+      viewTicket(id);
+    }
+    if (e.target.closest('.action-btn.download')) {
+      const id = e.target.closest('.action-btn.download').dataset.id;
+      downloadTicket(id);
+    }
+    if (e.target.closest('.action-btn.cancel')) {
+      const id = e.target.closest('.action-btn.cancel').dataset.id;
+      cancelPurchase(id);
+    }
+  });
 });
   </script>
   <script>
@@ -822,6 +831,17 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Optionally, you can show a message for speakers/vendors if needed
 });
+</script>
+<script>
+// Only show tickets for the logged-in user
+fetch('/my-tickets', {
+  headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+})
+  .then(res => res.json())
+  .then(tickets => {
+    // Render your tickets here
+    renderTickets(tickets);
+  });
 </script>
 </body>
 </html>

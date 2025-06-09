@@ -232,7 +232,7 @@
     .form-group input:focus,
     .form-group select:focus {
       outline: none;
-      background: rgba(255, 255, 255, 0.15);
+      background: lightpink;
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(0, 195, 255, 0.2);
     }
@@ -497,7 +497,7 @@
     .modal-btn:hover {
       background: var(--primary-dark);
       transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(0, 195, 255, 0.3);
+      box-shadow: 0 5px 15px rgba(13, 27, 141, 0.3);
     }
 
     .modal-btn::after {
@@ -507,7 +507,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      background: linear-gradient(90deg, transparent, rgba(22, 6, 98, 0.3), transparent);
       transform: translateX(-100%);
       transition: transform 0.5s ease;
     }
@@ -525,7 +525,7 @@
       border-radius: 12px;
       backdrop-filter: blur(5px);
       border: 1px solid rgba(255,255,255,0.1);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 8px 32px rgba(107, 3, 136, 0.2);
       z-index: 3;
       display: flex;
       flex-direction: column;
@@ -545,7 +545,7 @@
       left: 10px;
       right: 10px;
       bottom: 10px;
-      border: 1px dashed rgba(255,255,255,0.2);
+      border: 1px dashed rgba(8, 116, 55, 0.127);
       border-radius: 6px;
       pointer-events: none;
     }
@@ -629,7 +629,7 @@
 
   <!-- Header Section -->
   <header>
-    <h1>EventSphere</h1>
+    <h1>EventHub</h1>
     <div id="user-rbac" style="margin-top:10px;"></div>
   </header>
 
@@ -652,15 +652,12 @@
           <option value="">-- Select an Event --</option>
         </select>
       </div>
-      
-
       <!-- Ticket Visual (floating element) -->
       <div class="ticket-visual" id="ticketVisual">
         <div class="event-name" id="visualEventName">Event Name</div>
         <div class="ticket-type">General Admission</div>
-        <div class="price">$100.00</div>
+        <div class="price">₹100.00</div>
       </div>
-
       <!-- Event Details Section -->
       <div class="event-details">
         <h3><i class="fas fa-info-circle"></i> Event Information</h3>
@@ -668,29 +665,25 @@
           <label for="event-name">Event Name</label>
           <input type="text" id="event-name" disabled>
         </div>
-
         <div class="form-group">
           <label for="venue">Venue</label>
           <input type="text" id="venue" disabled>
         </div>
-
         <div class="form-group">
           <label for="date">Date & Time</label>
           <input type="text" id="date" disabled>
         </div>
       </div>
-
       <!-- Ticket Selection -->
       <div class="form-group">
         <label for="ticket-type">Ticket Type</label>
         <select id="ticket-type">
-          <option value="general">General Admission - $100</option>
-          <option value="vip">VIP Pass - $250</option>
-          <option value="student">Student Ticket - $75</option>
-          <option value="premium">Premium Experience - $500</option>
+          <option value="general">General Admission - ₹100</option>
+          <option value="vip">VIP Pass - ₹250</option>
+          <option value="student">Student Ticket - ₹75</option>
+          <option value="premium">Premium Experience - ₹500</option>
         </select>
       </div>
-
       <div class="form-group">
         <label for="ticket-quantity">Number of Tickets</label>
         <select id="ticket-quantity">
@@ -701,12 +694,11 @@
           <option value="5">5 Tickets</option>
         </select>
       </div>
-
       <!-- Price Summary -->
       <div class="price-section">
         <div class="price-item">
           <div class="label">Ticket Price</div>
-          <div class="value">$100.00</div>
+          <div class="value">₹100.00</div>
         </div>
         <div class="price-item">
           <div class="label">Quantity</div>
@@ -714,10 +706,9 @@
         </div>
         <div class="price-item total-price">
           <div class="label">Total</div>
-          <div class="value">$100.00</div>
+          <div class="value">₹100.00</div>
         </div>
       </div>
-
       <!-- Payment Method -->
       <div class="form-group">
         <label for="payment-method">Payment Method</label>
@@ -728,7 +719,6 @@
           <option value="crypto">Cryptocurrency</option>
         </select>
       </div>
-
       <!-- Terms and Conditions -->
       <div class="form-group" style="text-align: center; margin-top: 2rem;">
         <input type="checkbox" id="terms" style="width: auto; display: inline-block; margin-right: 10px;">
@@ -736,7 +726,6 @@
           I agree to the <a href="#" style="color: var(--primary); text-decoration: none;">Terms & Conditions</a>
         </label>
       </div>
-
       <!-- Submit Button -->
       <div class="form-group">
         <button id="purchase-btn">
@@ -770,6 +759,8 @@
     <p>&copy; 2025 EventSphere. All Rights Reserved.</p>
     <p style="margin-top: 0.5rem; font-size: 0.8rem;">Designed with <i class="fas fa-heart" style="color: var(--secondary);"></i> for event enthusiasts</p>
   </footer>
+
+  <div id="ticketedEvents"></div>
 
   <script>
 function authFetch(url, options = {}) {
@@ -818,13 +809,34 @@ function authFetch(url, options = {}) {
 // Elements
 const eventSelect = document.getElementById('event-select');
 const ticketTypeSelect = document.getElementById('ticket-type');
+const ticketQuantitySelect = document.getElementById('ticket-quantity');
 let currentPrices = {};
 let eventData = {};
 
-// Fetch events and populate the dropdown (already filtered by backend)
-authFetch('/events')
+function updatePrices() {
+  const ticketType = ticketTypeSelect.value;
+  const quantity = parseInt(ticketQuantitySelect.value) || 1;
+  const price = currentPrices[ticketType] || 0;
+  // Update price summary
+  const priceItems = document.querySelectorAll('.price-item .value');
+  if (priceItems.length === 3) {
+    priceItems[0].textContent = `₹${price.toFixed(2)}`;
+    priceItems[1].textContent = quantity;
+    priceItems[2].textContent = `₹${(price * quantity).toFixed(2)}`;
+  }
+  // Update ticket visual
+  document.getElementById('visualEventName').textContent = document.getElementById('event-name').value || 'Event Name';
+  document.querySelector('#ticketVisual .ticket-type').textContent = ticketTypeSelect.options[ticketTypeSelect.selectedIndex]?.text?.split('-')[0]?.trim() || '';
+  document.querySelector('#ticketVisual .price').textContent = `₹${price.toFixed(2)}`;
+}
+
+// Fetch only paid events and populate the dropdown
+authFetch('/ticketed-events')
   .then((response) => response.json())
   .then((events) => {
+    if (!Array.isArray(events)) {
+      throw new Error('Failed to load events. Please try again later.');
+    }
     events.forEach((event) => {
       eventData[event.id] = event;
       const option = document.createElement('option');
@@ -867,7 +879,7 @@ eventSelect.addEventListener('change', function () {
         currentPrices[type.key] = type.price;
         const opt = document.createElement('option');
         opt.value = type.key;
-        opt.textContent = `${type.label} - $${type.price}`;
+        opt.textContent = `${type.label} - ₹${type.price}`;
         ticketTypeSelect.appendChild(opt);
       });
       updatePrices();
@@ -931,6 +943,35 @@ document.getElementById('closeModal').addEventListener('click', function () {
   document.getElementById('confirmationModal').classList.remove('active');
   window.location.href = 'mytickets.html';
 });
+
+// ticket.html
+document.addEventListener('DOMContentLoaded', function() {
+  const token = localStorage.getItem('token');
+  fetch('/ticketed-events', {
+    headers: { 'Authorization': 'Bearer ' + token }
+  })
+    .then(res => res.json())
+    .then(events => {
+      const container = document.getElementById('ticketedEvents');
+      container.innerHTML = '';
+      events.forEach(event => {
+        const div = document.createElement('div');
+        div.innerHTML = `
+          <h3>${event.title}</h3>
+          <p>${event.description}</p>
+          <p>Standard: ₹${event.price_standard} | VIP: ₹${event.price_vip} | Premium: ₹${event.price_premium}</p>
+          <button onclick="buyTicket(${event.id})">Buy Ticket</button>
+          <hr>
+        `;
+        container.appendChild(div);
+      });
+    });
+});
+
+function buyTicket(eventId) {
+  // Show your ticket purchase modal/form here
+  alert('Implement ticket purchase for event ID: ' + eventId);
+}
   </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -22,6 +22,19 @@
       font-size: 2rem;
       font-weight: 600;
       letter-spacing: 1px;
+      position: relative;
+    }
+    .notif-badge {
+      position: absolute;
+      top: 18px;
+      right: 32px;
+      background: #f72585;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 0.95rem;
+      padding: 4px 10px;
+      font-weight: bold;
+      display: none;
     }
     .container {
       max-width: 600px;
@@ -52,11 +65,28 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.06);
       font-size: 1rem;
       display: flex;
-      align-items: center;
-      gap: 12px;
+      align-items: flex-start;
+      gap: 14px;
       color: #222;
+      position: relative;
+      transition: background 0.2s;
     }
-    .fa-bell { color: #4361ee; }
+    #notification-list li.unread {
+      background: #e0e7ff;
+    }
+    .notif-icon {
+      font-size: 1.4rem;
+      margin-top: 2px;
+    }
+    .notif-type-event { color: #4361ee; }
+    .notif-type-category { color: #4cc9f0; }
+    .notif-type-upcoming { color: #f8961e; }
+    .notif-type-test { color: #f72585; }
+    .notif-time {
+      font-size: 0.85rem;
+      color: #888;
+      margin-top: 4px;
+    }
     .back-link {
       display: inline-block;
       margin-bottom: 24px;
@@ -66,32 +96,121 @@
       transition: color 0.2s;
     }
     .back-link:hover { color: #222; }
+    .empty-state {
+      text-align: center;
+      color: #aaa;
+      margin-top: 40px;
+    }
+    .mark-read-btn {
+      background: #4361ee;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 18px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 18px;
+      float: right;
+      transition: background 0.2s;
+    }
+    .mark-read-btn:hover {
+      background: #222;
+    }
+    @media (max-width: 700px) {
+      .container { padding: 18px 4vw; }
+    }
   </style>
 </head>
 <body>
   <header>
     <i class="fas fa-bell"></i> EventSphere Notifications
+    <span class="notif-badge" id="notifBadge"></span>
   </header>
   <div class="container">
     <a href="home.html" class="back-link"><i class="fas fa-arrow-left"></i> Back to Home</a>
+    <button class="mark-read-btn" id="markReadBtn" style="display:none;">Mark all as read</button>
     <h2><i class="fas fa-bell"></i> All Notifications</h2>
     <ul id="notification-list"></ul>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <i class="fas fa-bell-slash" style="font-size:2.5rem;"></i>
+      <p>No notifications yet.</p>
+    </div>
   </div>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io('http://localhost:3000');
+    // Only allow logged-in users
+    if (!localStorage.getItem('token')) {
+      alert('Please log in to view notifications.');
+      window.location.href = 'login.html';
+    }
+
+    const notificationList = document.getElementById('notification-list');
+    const emptyState = document.getElementById('emptyState');
+    const notifBadge = document.getElementById('notifBadge');
+    const markReadBtn = document.getElementById('markReadBtn');
+    let notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
+
+    // Helper: Format time
+    function formatTime(date) {
+      const d = new Date(date);
+      return d.toLocaleString();
+    }
+
+    // Render notifications
+    function renderNotifications() {
+      notificationList.innerHTML = '';
+      let unreadCount = 0;
+      if (notifications.length === 0) {
+        emptyState.style.display = 'block';
+        notifBadge.style.display = 'none';
+        markReadBtn.style.display = 'none';
+        return;
+      }
+      emptyState.style.display = 'none';
+      notifications.slice().reverse().forEach(n => {
+        let icon = '<i class="fas fa-info-circle notif-icon"></i>';
+        let cls = '';
+        if (n.type === 'category') { icon = '<i class="fas fa-folder notif-icon notif-type-category"></i>'; cls = 'notif-type-category'; }
+        if (n.type === 'event') { icon = '<i class="fas fa-calendar notif-icon notif-type-event"></i>'; cls = 'notif-type-event'; }
+        if (n.type === 'upcoming') { icon = '<i class="fas fa-clock notif-icon notif-type-upcoming"></i>'; cls = 'notif-type-upcoming'; }
+        if (n.type === 'test') { icon = '<i class="fas fa-bolt notif-icon notif-type-test"></i>'; cls = 'notif-type-test'; }
+        const unread = n.unread ? 'unread' : '';
+        if (n.unread) unreadCount++;
+        notificationList.innerHTML += `
+          <li class="${unread}">
+            ${icon}
+            <div>
+              <div class="${cls}">${n.message}</div>
+              <div class="notif-time">${formatTime(n.time)}</div>
+            </div>
+          </li>
+        `;
+      });
+      notifBadge.style.display = unreadCount > 0 ? 'inline-block' : 'none';
+      notifBadge.textContent = unreadCount;
+      markReadBtn.style.display = unreadCount > 0 ? 'inline-block' : 'none';
+    }
+
+    // Mark all as read
+    markReadBtn.onclick = function() {
+      notifications.forEach(n => n.unread = false);
+      localStorage.setItem('notifications', JSON.stringify(notifications));
+      renderNotifications();
+    };
+
+    // Connect to Socket.IO
+    const socket = io();
+
+    // Listen for notifications
     socket.on('notification', (data) => {
-      addNotificationToList(data.message);
+      notifications.push({ ...data, time: new Date(), unread: true });
+      localStorage.setItem('notifications', JSON.stringify(notifications));
+      renderNotifications();
     });
 
-    function addNotificationToList(message) {
-      const notifList = document.getElementById('notification-list');
-      if (notifList) {
-        const li = document.createElement('li');
-        li.innerHTML = `<i class="fas fa-bell"></i> ${message}`;
-        notifList.insertBefore(li, notifList.firstChild);
-      }
-    }
+    // Initial render
+    renderNotifications();
   </script>
 </body>
 </html>

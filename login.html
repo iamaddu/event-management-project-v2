@@ -509,7 +509,30 @@
           localStorage.setItem('token', result.token);
           if (result.user_type) localStorage.setItem('user_type', result.user_type);
           if (result.user_name) localStorage.setItem('user_name', result.user_name);
-          window.location.href = result.redirect;
+
+          // --- Admin access code verification ---
+          if (result.user_type === 'admin') {
+            const code = prompt('Enter admin access code:');
+            const verifyRes = await fetch('/admin-verify', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + result.token
+              },
+              body: JSON.stringify({ access_code: code })
+            });
+            if (verifyRes.ok) {
+              sessionStorage.setItem('adminVerified', 'true');
+              window.location.href = result.redirect;
+            } else {
+              alert('Invalid admin access code.');
+              localStorage.removeItem('token');
+              sessionStorage.removeItem('adminVerified');
+              return;
+            }
+          } else {
+            window.location.href = result.redirect;
+          }
         } catch (error) {
           errorSpan.textContent = error.message;
           errorMessage.classList.add('show', 'shake');

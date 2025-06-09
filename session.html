@@ -238,6 +238,15 @@
           <label for="sessionEventId">Event</label>
           <select id="sessionEventId" required></select>
         </div>
+        <div class="form-group">
+          <label for="sessionSpeakers">Speakers</label>
+          <select id="sessionSpeakers" multiple style="height:80px;"></select>
+        </div>
+        <!-- Add below your speakers select in the add session form -->
+        <div class="form-group">
+          <input type="text" id="newSpeakerName" placeholder="Type new speaker name">
+          <button type="button" id="addSpeakerBtn" style="margin-left:5px;">Add Speaker</button>
+        </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Add Session</button>
         </div>
@@ -256,6 +265,7 @@
             <th>Start Time</th>
             <th>End Time</th>
             <th>Event Name</th>
+            <th>Speakers</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -296,6 +306,14 @@
         <div class="form-group">
           <label for="editSessionEventId">Event</label>
           <select id="editSessionEventId" required></select>
+        </div>
+        <div class="form-group">
+          <label for="editSessionSpeakers">Speakers</label>
+          <select id="editSessionSpeakers" multiple style="height:80px;"></select>
+        </div>
+        <div class="form-group">
+          <input type="text" id="editSpeakerName" placeholder="Edit speaker name (optional)">
+          <button type="button" id="saveSpeakerNameBtn" style="margin-left:5px;">Save Speaker Name</button>
         </div>
         <div class="form-actions">
           <button type="button" class="cancel-btn" id="cancelEdit">Cancel</button>
@@ -354,6 +372,8 @@
     const editSessionForm = document.getElementById('editSessionForm');
     const sessionEventIdSelect = document.getElementById('sessionEventId');
     const editSessionEventIdSelect = document.getElementById('editSessionEventId');
+    const sessionSpeakersSelect = document.getElementById('sessionSpeakers');
+    const editSessionSpeakersSelect = document.getElementById('editSessionSpeakers');
     const commentsModal = document.getElementById('commentsModal');
     const closeCommentsModalBtn = document.getElementById('closeCommentsModal');
     const addCommentForm = document.getElementById('addCommentForm');
@@ -362,12 +382,20 @@
     let sessions = [];
     let events = [];
     let eventMap = {};
+    let speakers = [];
+    let speakerMap = {};
 
     // User info
     let userRole = localStorage.getItem('user_type');
     let userName = localStorage.getItem('user_name');
     let userToken = localStorage.getItem('token');
     let userId = null;
+
+    // --- Ensure token is present for all protected requests ---
+    if (!userToken) {
+      alert('You must be logged in to view this page.');
+      window.location.href = 'login.html';
+    }
 
     // Optionally fetch userId from backend if needed for comments
     if (userToken) {
@@ -396,7 +424,9 @@
     // Fetch all events and build eventMap
     async function fetchEvents() {
       try {
-        const res = await fetch('/events');
+        const res = await fetch('/events', {
+          headers: { 'Authorization': 'Bearer ' + userToken }
+        });
         if (!res.ok) throw new Error('Failed to fetch events');
         events = await res.json();
         eventMap = {};
@@ -410,12 +440,43 @@
       }
     }
 
+    // Fetch speakers from backend
+    async function fetchSpeakers() {
+      try {
+        const res = await fetch('/speakers', {
+          headers: { 'Authorization': 'Bearer ' + userToken }
+        });
+        if (!res.ok) throw new Error('Failed to fetch speakers');
+        speakers = await res.json();
+        speakerMap = {};
+        speakers.forEach(sp => {
+          const id = sp.id || sp.speaker_id;
+          speakerMap[id] = sp;
+          // Populate dropdowns
+          const opt1 = document.createElement('option');
+          opt1.value = id;
+          opt1.textContent = (sp.first_name || '') + ' ' + (sp.last_name || '');
+          sessionSpeakersSelect.appendChild(opt1);
+
+          const opt2 = document.createElement('option');
+          opt2.value = id;
+          opt2.textContent = (sp.first_name || '') + ' ' + (sp.last_name || '');
+          editSessionSpeakersSelect.appendChild(opt2);
+        });
+      } catch (error) {
+        console.error('Error fetching speakers:', error);
+      }
+    }
+
     // Fetch sessions from backend
     async function fetchSessions() {
       try {
-        const res = await fetch('/sessions');
+        const res = await fetch('/sessions', {
+          headers: { 'Authorization': 'Bearer ' + userToken }
+        });
         if (!res.ok) throw new Error('Failed to fetch sessions');
         sessions = await res.json();
+        console.log('Fetched sessions:', sessions); // Debug log to check speakers field
         renderSessions(sessions);
       } catch (error) {
         console.error('Error fetching sessions:', error);
@@ -437,6 +498,21 @@
         if (window.userRole === 'attendee') {
           registerBtn = `<button class="session-register-btn" data-id="${session.id}">Register</button>`;
         }
+        // Render speakers with photo and name, clickable to open modal
+        const speakersHtml = Array.isArray(session.speakers)
+          ? session.speakers.map(s => {
+              const sp = speakerMap[s.id];
+              if (sp) {
+                return `<span class="speaker-item" data-id="${sp.id}" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; margin-right:8px;">
+                  <img src="${sp.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(sp.first_name + ' ' + sp.last_name) + '&background=4361ee&color=fff'}" alt="${sp.first_name} ${sp.last_name}" style="width:24px; height:24px; border-radius:50%; object-fit:cover; border:1px solid #4361ee;">
+                  <span>${sp.first_name} ${sp.last_name}</span>
+                </span>`;
+              } else {
+                return `<span>${s.name || s}</span>`;
+              }
+            }).join('')
+          : (typeof session.speakers === 'string' ? session.speakers : '');
+
         tr.innerHTML = `
           <td>${session.id}</td>
           <td>${session.title}</td>
@@ -445,6 +521,7 @@
           <td>${session.start_time ? session.start_time.replace('T', ' ').slice(0, 16) : ''}</td>
           <td>${session.end_time ? session.end_time.replace('T', ' ').slice(0, 16) : ''}</td>
           <td>${eventName}</td>
+          <td>${speakersHtml}</td>
           <td>
             ${registerBtn}
             <button class="edit-btn" data-id="${session.id}"><i class="fas fa-edit"></i> Edit</button>
@@ -475,6 +552,40 @@
           openCommentsModal(sessionId);
         });
       });
+      // Add event listeners for speaker items to open modal
+      document.querySelectorAll('.speaker-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const speakerId = el.getAttribute('data-id');
+          openSpeakerModal(speakerId);
+        });
+      });
+    }
+
+    // Modal for speaker details
+    const speakerModalHtml = `
+      <div id="speakerModal" class="modal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%);
+        background: var(--dark-bg); border-radius:12px; padding:20px; box-shadow:0 5px 15px rgba(0,0,0,0.3); z-index:2000; max-width:400px; width:100%;">
+        <button id="closeSpeakerModal" style="position:absolute; top:10px; right:10px; background:none; border:none; color:var(--text-color); font-size:20px; cursor:pointer;">&times;</button>
+        <div id="speakerModalContent"></div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', speakerModalHtml);
+    const speakerModal = document.getElementById('speakerModal');
+    const speakerModalContent = document.getElementById('speakerModalContent');
+    const closeSpeakerModalBtn = document.getElementById('closeSpeakerModal');
+    closeSpeakerModalBtn.addEventListener('click', () => {
+      speakerModal.style.display = 'none';
+    });
+
+    function openSpeakerModal(speakerId) {
+      const sp = speakerMap[speakerId];
+      if (!sp) return;
+      speakerModalContent.innerHTML = `
+        <img src="${sp.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(sp.first_name + ' ' + sp.last_name) + '&background=4361ee&color=fff'}" alt="${sp.first_name} ${sp.last_name}" style="width:90px; height:90px; border-radius:50%; object-fit:cover; border:3px solid #4361ee; margin-bottom:16px;">
+        <h3 style="color: var(--primary-color); margin-bottom:8px;">${sp.first_name} ${sp.last_name}</h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">${sp.bio || 'No bio available.'}</p>
+      `;
+      speakerModal.style.display = 'block';
     }
 
     // Create session (POST)
@@ -495,6 +606,19 @@
           body: JSON.stringify(newSession)
         });
         if (!res.ok) throw new Error(await res.text() || 'Failed to add session');
+        const sessionId = (await res.json()).id;
+        // After successfully creating/updating a session:
+        const speakerIds = Array.from(sessionSpeakersSelect.selectedOptions).map(opt => parseInt(opt.value));
+        if (speakerIds.length) {
+          await fetch(`/sessions/${sessionId}/speakers`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + userToken
+            },
+            body: JSON.stringify({ speakerIds })
+          });
+        }
         await fetchSessions();
         addSessionForm.reset();
       } catch (error) {
@@ -546,6 +670,16 @@
           body: JSON.stringify(updatedSession)
         });
         if (!res.ok) throw new Error(await res.text() || 'Update failed');
+        // Update speakers for the session
+        const speakerIds = Array.from(editSessionSpeakersSelect.selectedOptions).map(opt => parseInt(opt.value));
+        await fetch(`/sessions/${sessionId}/speakers`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + userToken
+          },
+          body: JSON.stringify({ speakerIds })
+        });
         closeEditModal();
         await fetchSessions();
       } catch (error) {
@@ -627,6 +761,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       await fetchEvents();
       await fetchSessions();
+      await fetchSpeakers();
     });
 
     // RBAC: Show user info and restrict access based on user_type
@@ -700,6 +835,69 @@
       // Hide register button for non-attendees (handled in renderSessions)
       // Hide comments form for non-attendees (handled in comments modal)
     });
+
+    document.getElementById('addSpeakerBtn').onclick = async function() {
+      const name = document.getElementById('newSpeakerName').value.trim();
+      if (!name) return alert('Enter speaker name');
+      // Split name into first and last (optional)
+      const [first_name, ...rest] = name.split(' ');
+      const last_name = rest.join(' ');
+      try {
+        const res = await fetch('/speakers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + userToken
+          },
+          body: JSON.stringify({ first_name, last_name })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        await fetchSpeakers();
+        document.getElementById('newSpeakerName').value = '';
+        alert('Speaker added!');
+      } catch (e) {
+        alert('Could not add speaker: ' + e.message);
+      }
+    };
+
+    const editSpeakerNameInput = document.getElementById('editSpeakerName');
+    const saveSpeakerNameBtn = document.getElementById('saveSpeakerNameBtn');
+
+    // When a speaker is selected in the edit modal, show their name in the input
+    editSessionSpeakersSelect.addEventListener('change', function() {
+      const selectedId = editSessionSpeakersSelect.value;
+      if (selectedId && speakerMap[selectedId]) {
+        const sp = speakerMap[selectedId];
+        editSpeakerNameInput.value = (sp.first_name || '') + ' ' + (sp.last_name || '');
+      } else {
+        editSpeakerNameInput.value = '';
+      }
+    });
+
+    // Save speaker name change
+    saveSpeakerNameBtn.onclick = async function() {
+      const selectedId = editSessionSpeakersSelect.value;
+      const name = editSpeakerNameInput.value.trim();
+      if (!selectedId) return alert('Select a speaker to edit');
+      if (!name) return alert('Enter a new name');
+      const [first_name, ...rest] = name.split(' ');
+      const last_name = rest.join(' ');
+      try {
+        const res = await fetch(`/speakers/${selectedId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + userToken
+          },
+          body: JSON.stringify({ first_name, last_name })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        await fetchSpeakers();
+        alert('Speaker name updated!');
+      } catch (e) {
+        alert('Could not update speaker: ' + e.message);
+      }
+    };
   </script>
 </body>
 </html>

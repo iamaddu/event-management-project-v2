@@ -341,6 +341,12 @@
               <option value="fcfs">First-Come-First-Serve</option>
             </select>
           </div>
+
+          <!-- FCFS: Max Participants (hidden by default) -->
+          <div class="form-group" id="fcfsMaxGroup" style="display:none;">
+            <label for="fcfs_max">Max FCFS Participants</label>
+            <input type="number" id="fcfs_max" placeholder="Max FCFS participants" min="1">
+          </div>
         </div>
 
         <div class="form-actions">
@@ -389,6 +395,20 @@
       window.location.href = 'home.html';
     });
 
+    // Show/hide ticket and FCFS fields based on event type
+    function handleEventTypeChange() {
+      const eventType = document.getElementById('eventType').value;
+      // Ticket price fields
+      document.getElementById('price_standard').parentElement.parentElement.style.display = (eventType === 'paid') ? 'block' : 'none';
+      document.getElementById('price_vip').parentElement.parentElement.style.display = (eventType === 'paid') ? 'block' : 'none';
+      document.getElementById('price_premium').parentElement.parentElement.style.display = (eventType === 'paid') ? 'block' : 'none';
+      // FCFS max participants
+      document.getElementById('fcfsMaxGroup').style.display = (eventType === 'fcfs') ? 'block' : 'none';
+    }
+    document.getElementById('eventType').addEventListener('change', handleEventTypeChange);
+    // Call once on page load
+    handleEventTypeChange();
+
     const form = document.getElementById('createEventForm');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -406,6 +426,7 @@
         const { id: category_id } = await categoryRes.json();
 
         // 2. Prepare event data
+        const eventType = document.getElementById('eventType').value;
         const eventData = {
           title: document.getElementById('title').value,
           description: document.getElementById('description').value,
@@ -414,14 +435,22 @@
           location: document.getElementById('location').value,
           venue: document.getElementById('venue').value,
           capacity: parseInt(document.getElementById('capacity').value),
-          price_standard: parseFloat(document.getElementById('price_standard').value),
-          price_vip: parseFloat(document.getElementById('price_vip').value),
-          price_premium: parseFloat(document.getElementById('price_premium').value),
           category_id,
           image: document.getElementById('image').value || null,
-          event_type: document.getElementById('eventType').value,
+          event_type: eventType,
           organizer: parseInt(document.getElementById('organizer').value)
         };
+
+        // Only include ticket prices if paid
+        if (eventType === 'paid') {
+          eventData.price_standard = parseFloat(document.getElementById('price_standard').value);
+          eventData.price_vip = parseFloat(document.getElementById('price_vip').value);
+          eventData.price_premium = parseFloat(document.getElementById('price_premium').value);
+        }
+        // Only include FCFS max if fcfs
+        if (eventType === 'fcfs') {
+          eventData.fcfs_max = parseInt(document.getElementById('fcfs_max').value);
+        }
 
         // 3. Submit to server
         const response = await fetch('/create-event', {

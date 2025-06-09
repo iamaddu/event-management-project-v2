@@ -2,28 +2,330 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Speakers - EventSphere</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <title>Speakers | EventHub</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { font-family: 'Poppins', sans-serif; background: #222; color: #fff; }
-    .speaker-card { background: #333; border-radius: 10px; padding: 20px; margin: 20px 0; }
-    .speaker-photo { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #181a1b;
+      color: #f8f9fa;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+    h2 {
+      color: #4361ee;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .speakers-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      justify-content: center;
+    }
+    .speaker-card {
+      background: #23272f;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(67,97,238,0.08);
+      padding: 24px;
+      width: 280px;
+      text-align: center;
+      transition: transform 0.2s;
+    }
+    .speaker-card:hover {
+      transform: translateY(-6px) scale(1.03);
+      box-shadow: 0 8px 32px rgba(67,97,238,0.18);
+    }
+    .speaker-photo {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-bottom: 16px;
+      border: 3px solid #4361ee;
+      background: #fff;
+    }
+    .speaker-name {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #4cc9f0;
+      margin-bottom: 8px;
+    }
+    .speaker-bio {
+      font-size: 0.98rem;
+      color: #b0b8c1;
+      margin-bottom: 10px;
+    }
+    .speaker-sessions {
+      font-size: 0.98rem;
+      color: #a3e635;
+      margin-top: 8px;
+      text-align: left;
+    }
+    .speaker-sessions ul {
+      margin: 0 0 0 18px;
+      padding: 0;
+      color: #fff;
+    }
+    .speaker-sessions li {
+      margin-bottom: 4px;
+      color: #fff;
+    }
+    #addSpeakerSection {
+      margin-bottom: 32px;
+      display: none;
+    }
+    #addSpeakerSection h3 {
+      color: #4361ee;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+    #addSpeakerSection label {
+      display: block;
+      margin-bottom: 8px;
+      color: #f8f9fa;
+    }
+    #addSpeakerSection input,
+    #addSpeakerSection textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 16px;
+      border: 1px solid #4361ee;
+      border-radius: 8px;
+      background: #23272f;
+      color: #f8f9fa;
+    }
+    #addSpeakerSection button {
+      background: #4361ee;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    #addSpeakerSection button:hover {
+      background: #3b57d1;
+    }
+    /* Modal styles */
+    #editSpeakerModal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #23272f;
+      padding: 24px;
+      border-radius: 12px;
+      z-index: 2000;
+      max-width: 400px;
+      width: 100%;
+    }
+    #editSpeakerModal h3 {
+      color: #4361ee;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+    #editSpeakerModal label {
+      display: block;
+      margin-bottom: 8px;
+      color: #f8f9fa;
+    }
+    #editSpeakerModal input,
+    #editSpeakerModal textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 16px;
+      border: 1px solid #4361ee;
+      border-radius: 8px;
+      background: #23272f;
+      color: #f8f9fa;
+    }
+    #editSpeakerModal button {
+      background: #4361ee;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    #editSpeakerModal button:hover {
+      background: #3b57d1;
+    }
   </style>
 </head>
 <body>
-  <h1>Speakers</h1>
-  <div id="speakers-list"></div>
+  <div class="container">
+    <h2><i class="fas fa-microphone"></i> Event Speakers</h2>
+    
+    <div id="addSpeakerSection">
+      <h3>Add Speaker</h3>
+      <form id="addSpeakerForm">
+        <label>First Name:
+          <input type="text" id="speakerFirstName" required>
+        </label>
+        <label>Last Name:
+          <input type="text" id="speakerLastName" required>
+        </label>
+        <label>Bio:
+          <textarea id="speakerBio" required></textarea>
+        </label>
+        <label>Photo URL:
+          <input type="url" id="speakerPhoto" placeholder="https://...">
+        </label>
+        <button type="submit">Add Speaker</button>
+      </form>
+    </div>
+
+    <div id="speakersList" class="speakers-list"></div>
+  </div>
+
+  <!-- Edit Speaker Modal -->
+  <div id="editSpeakerModal">
+    <h3>Edit Speaker</h3>
+    <form id="editSpeakerForm">
+      <input type="hidden" id="editSpeakerId">
+      <label>First Name:<br>
+        <input type="text" id="editSpeakerFirstName" required>
+      </label>
+      <label>Last Name:<br>
+        <input type="text" id="editSpeakerLastName" required>
+      </label>
+      <label>Bio:<br>
+        <textarea id="editSpeakerBio" required></textarea>
+      </label>
+      <label>Photo URL:<br>
+        <input type="url" id="editSpeakerPhoto">
+      </label>
+      <button type="submit">Save</button>
+      <button type="button" id="cancelEditSpeaker" style="margin-left:10px;">Cancel</button>
+    </form>
+  </div>
+
   <script>
-    fetch('/speakers').then(res => res.json()).then(speakers => {
-      document.getElementById('speakers-list').innerHTML = speakers.map(s =>
-        `<div class="speaker-card">
-          <img src="${s.photo || 'https://via.placeholder.com/80'}" class="speaker-photo" />
-          <b>${s.first_name} ${s.last_name} (${s.username})</b><br>
-          <i>${s.email}</i><br>
-          <p>${s.bio || ''}</p>
-        </div>`
-      ).join('');
+    // Show add speaker form for admin/organizer
+    const userType = localStorage.getItem('user_type');
+    if (userType === 'admin' || userType === 'organizer') {
+      document.getElementById('addSpeakerSection').style.display = 'block';
+    }
+
+    // Load speakers
+    function loadSpeakers() {
+      fetch('/speakers', {
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') }
+      })
+      .then(res => res.json())
+      .then(speakers => {
+        const container = document.getElementById('speakersList');
+        container.innerHTML = '';
+        if (!Array.isArray(speakers) || !speakers.length) {
+          container.innerHTML = '<p>No speakers found.</p>';
+          return;
+        }
+        speakers.forEach(speaker => {
+          const div = document.createElement('div');
+          div.className = 'speaker-card';
+          div.innerHTML = `
+            <img src="${speaker.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(speaker.first_name + ' ' + speaker.last_name) + '&background=4361ee&color=fff'}" class="speaker-photo" alt="${speaker.first_name} ${speaker.last_name}">
+            <div class="speaker-name">${speaker.first_name} ${speaker.last_name}</div>
+            <div class="speaker-bio">${speaker.bio ? speaker.bio : 'No bio available.'}</div>
+            <div class="speaker-sessions">
+              <strong>Sessions:</strong>
+              ${speaker.sessions && speaker.sessions.length ? `
+                <ul>
+                  ${speaker.sessions.map(sess => `<li><b>${sess.title}</b><br><span style="font-size:0.95em;color:#b0b8c1;">${sess.description || ''}</span></li>`).join('')}
+                </ul>
+              ` : '<span style="color:#f59e0b;">No sessions assigned.</span>'}
+            </div>
+            ${(userType === 'admin' || userType === 'organizer') ? `<button class="edit-speaker-btn" data-id="${speaker.speaker_id}" data-first="${speaker.first_name}" data-last="${speaker.last_name}" data-bio="${speaker.bio || ''}" data-photo="${speaker.photo || ''}">Edit</button>` : ''}
+          `;
+          container.appendChild(div);
+        });
+      })
+      .catch(() => {
+        document.getElementById('speakersList').innerHTML = '<p style="color:#f72585;">Failed to load speakers.</p>';
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', loadSpeakers);
+
+    // Handle add speaker form submit
+    document.getElementById('addSpeakerForm').onsubmit = function(e) {
+      e.preventDefault();
+      const firstName = document.getElementById('speakerFirstName').value;
+      const lastName = document.getElementById('speakerLastName').value;
+      fetch('/speakers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
+        },
+        body: JSON.stringify({
+          first_name: firstName,
+          last_name: lastName,
+          bio: document.getElementById('speakerBio').value,
+          photo: document.getElementById('speakerPhoto').value
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert('Speaker added!');
+          loadSpeakers();
+          document.getElementById('addSpeakerForm').reset();
+        } else {
+          alert(data.error || 'Failed to add speaker');
+        }
+      });
+    };
+
+    // Edit speaker modal logic
+    document.body.addEventListener('click', function(e) {
+      if (e.target.classList.contains('edit-speaker-btn')) {
+        document.getElementById('editSpeakerId').value = e.target.dataset.id;
+        document.getElementById('editSpeakerFirstName').value = e.target.dataset.first;
+        document.getElementById('editSpeakerLastName').value = e.target.dataset.last;
+        document.getElementById('editSpeakerBio').value = e.target.dataset.bio;
+        document.getElementById('editSpeakerPhoto').value = e.target.dataset.photo;
+        document.getElementById('editSpeakerModal').style.display = 'block';
+      }
     });
+    document.getElementById('cancelEditSpeaker').onclick = function() {
+      document.getElementById('editSpeakerModal').style.display = 'none';
+    };
+    document.getElementById('editSpeakerForm').onsubmit = function(e) {
+      e.preventDefault();
+      const id = document.getElementById('editSpeakerId').value;
+      fetch('/speakers/' + id, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
+        },
+        body: JSON.stringify({
+          first_name: document.getElementById('editSpeakerFirstName').value,
+          last_name: document.getElementById('editSpeakerLastName').value,
+          bio: document.getElementById('editSpeakerBio').value,
+          photo: document.getElementById('editSpeakerPhoto').value
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert('Speaker updated!');
+          document.getElementById('editSpeakerModal').style.display = 'none';
+          loadSpeakers();
+        } else {
+          alert(data.error || 'Failed to update speaker');
+        }
+      });
+    };
   </script>
 </body>
 </html>

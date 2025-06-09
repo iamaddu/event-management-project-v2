@@ -172,16 +172,22 @@ app.put('/category/:categoryId', (req, res) => {
 
 // Signup Endpoint
 app.post('/signup', async (req, res) => {
-  const { first_name, last_name, username, email, phone, password, user_type } = req.body;
+  const { first_name, last_name, username, email, phone, password, user_type, admin_access_code } = req.body;
   try {
+    if (user_type === 'admin') {
+      // Require correct access code for admin signup
+      if (admin_access_code !== 'iamadmin') {
+        return res.status(403).json({ error: 'Invalid admin access code.' });
+      }
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     const query = `
-      INSERT INTO users (first_name, last_name, username, email, phone, password, user_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (first_name, last_name, username, email, phone, password, user_type, admin_access_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
     db.query(
       query,
-      [first_name, last_name, username, email, phone, hashedPassword, user_type || 'attendee'],
+      [first_name, last_name, username, email, phone, hashedPassword, user_type || 'attendee', user_type === 'admin' ? admin_access_code : null],
       (err, result) => {
         if (err) {
           console.error('Error inserting user:', err.message);
@@ -408,6 +414,12 @@ app.post('/create-event', authenticateToken, authorizeRoles('admin', 'organizer'
         console.error('Error inserting event:', err);
         return res.status(500).json({ error: 'Failed to create event' });
       }
+      // EMIT notification to all users
+      io.emit('notification', {
+        type: 'event',
+        message: `A new event "${req.body.title}" has been added!`,
+        eventId: result.insertId
+      });
       res.json({ success: true, eventId: result.insertId });
     }
   );
@@ -527,18 +539,57 @@ if (!slug) return res.status(400).json({ error: 'Category name or slug required.
 });
 
 // Get All Events Endpoint
-app.get('/events', (req, res) => {
-  const query = `
-    SELECT * FROM events
-    ORDER BY start ASC
-  `;
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error fetching events:', err.message);
-      return res.status(500).json({ error: 'Failed to fetch events' });
-    }
+app.get('/events', authenticateToken, authorizeRoles('attendee', 'organizer', 'admin', 'speaker', 'vendor'), (req, res) => {
+  db.query('SELECT * FROM events WHERE status = "Published"', (err, results) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch events' });
     res.json(results);
   });
+});
+
+// Get only events that require tickets (paid events)
+app.get('/ticketed-events', authenticateToken, (req, res) => {
+  db.query(
+    `SELECT * FROM events 
+     WHERE status = "Published" 
+       AND (
+         (COALESCE(price_standard,0) > 0) 
+         OR (COALESCE(price_vip,0) > 0)  
+         OR (COALESCE(price_premium,0) > 0)
+       )`,
+    (err, results) => {
+      if (err) return res.status(500).json({ error: 'Failed to fetch ticketed events' });
+      res.json(results);
+    }
+  );
+});
+
+// Get only FCFS events (no ticket price)
+app.get('/fcfs-events', authenticateToken, (req, res) => {
+  db.query(
+    `SELECT * FROM events 
+     WHERE status = "Published" 
+       AND (COALESCE(price_standard,0) = 0 AND COALESCE(price_vip,0) = 0 AND COALESCE(price_premium,0) = 0)`,
+    (err, results) => {
+      if (err) return res.status(500).json({ error: 'Failed to fetch FCFS events' });
+      res.json(results);
+    }
+  );
+});
+
+// Get only events that require registration (not ticket purchase)
+app.get('/registration-events', authenticateToken, (req, res) => {
+  db.query(
+    `SELECT * FROM events 
+     WHERE status = "Published" 
+       AND (event_type = 'free' OR event_type = 'fcfs')
+       AND COALESCE(price_standard,0) = 0 
+       AND COALESCE(price_vip,0) = 0 
+       AND COALESCE(price_premium,0) = 0`,
+    (err, results) => {
+      if (err) return res.status(500).json({ error: 'Failed to fetch registration events' });
+      res.json(results);
+    }
+  );
 });
 
 // ========================
@@ -784,7 +835,7 @@ app.delete('/attendees/:id', (req, res) => {
 // ========================
 
 // Purchase Ticket Endpoint
-app.post('/purchase-ticket', authenticateToken, (req, res) => {
+app.post('/purchase-ticket', authenticateToken, authorizeRoles('attendee', 'admin'), (req, res) => {
   const { event_id, ticket_type, quantity, total_price, payment_method } = req.body;
   const user_id = req.user.id;
   const query = `
@@ -962,59 +1013,30 @@ app.post('/register', authenticateToken, (req, res) => {
 app.get('/my-registrations', authenticateToken, (req, res) => {
   const userId = req.user.id;
   const query = `
-    SELECT * FROM (
-      SELECT 
-        p.id,
-        p.event_id,
-        e.title AS event_name,
-        e.start AS event_date,
-        e.venue,
-        p.ticket_type,
-        p.quantity,
-        p.total_price,
-        p.payment_method,
-        p.created_at,
-        CASE 
-          WHEN e.start > NOW() THEN 'upcoming'
-          ELSE 'past'
-        END AS status
-      FROM purchases p
-      JOIN events e ON p.event_id = e.id
-      WHERE p.user_id = ?
-
-      UNION ALL
-
-      SELECT 
-        c.id,
-        c.event_id,
-        e.title AS event_name,
-        e.start AS event_date,
-        e.venue,
-        c.ticket_type,
-        c.quantity,
-        c.total_price,
-        c.payment_method,
-        c.cancelled_at AS created_at,
-        'cancelled' AS status
-      FROM cancelled_tickets c
-      JOIN events e ON c.event_id = e.id
-      WHERE c.user_id = ?
-    ) AS all_regs
-    INNER JOIN (
-      SELECT event_id, MAX(created_at) AS max_created
-      FROM (
-        SELECT event_id, created_at FROM purchases WHERE user_id = ?
-        UNION ALL
-        SELECT event_id, cancelled_at AS created_at FROM cancelled_tickets WHERE user_id = ?
-      ) t
-      GROUP BY event_id
-    ) latest ON all_regs.event_id = latest.event_id AND all_regs.created_at = latest.max_created
-    ORDER BY all_regs.created_at DESC
+    SELECT 
+      r.id,
+      r.event_id,
+      e.title AS event_name,
+      e.start AS event_date,
+      e.venue,
+      r.ticketType AS ticket_type,
+      r.quantity,
+      r.status,
+      r.created_at,
+      CASE
+        WHEN r.ticketType = 'VIP' THEN e.price_vip * r.quantity
+        WHEN r.ticketType = 'Premium' THEN e.price_premium * r.quantity
+        ELSE e.price_standard * r.quantity
+      END AS total_price
+    FROM registrations r
+    JOIN events e ON r.event_id = e.id
+    WHERE r.user_id = ?
+    ORDER BY r.created_at DESC
   `;
-  db.query(query, [userId, userId, userId, userId], (err, results) => {
+  db.query(query, [userId], (err, results) => {
     if (err) {
-      console.error('Error fetching purchases:', err);
-      return res.status(500).json({ error: 'Failed to fetch purchases' });
+      console.error('Error fetching registrations:', err);
+      return res.status(500).json({ error: 'Failed to fetch registrations' });
     }
     res.json(results);
   });
@@ -1113,15 +1135,28 @@ app.get('/category/:categoryId', (req, res) => {
 // Session Endpoints
 // ========================
 
-// GET all sessions
+// GET all sessions (with speakers, supporting both user-linked and guest speakers)
 app.get('/sessions', (req, res) => {
-  const query = 'SELECT * FROM sessions';
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error fetching sessions:', err.message);
-      return res.status(500).json({ error: 'Failed to fetch sessions' });
-    }
-    res.json(results);
+  db.query('SELECT * FROM sessions', (err, sessions) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch sessions' });
+    if (!sessions.length) return res.json([]);
+
+    db.query(
+      `SELECT ss.session_id, s.first_name, s.last_name
+       FROM session_speakers ss
+       JOIN speakers s ON ss.speaker_id = s.id`,
+      (err2, speakerRows) => {
+        if (err2) return res.status(500).json({ error: 'Failed to fetch speakers' });
+
+        sessions.forEach(session => {
+          session.speakers = speakerRows
+            .filter(row => row.session_id === session.id)
+            .map(row => ({ name: `${row.first_name || ''} ${row.last_name || ''}`.trim() }));
+        });
+
+        res.json(sessions);
+      }
+    );
   });
 });
 
@@ -1178,13 +1213,12 @@ app.delete('/sessions/:id', (req, res) => {
 
 app.get('/events/:id/ticket-types', (req, res) => {
   const eventId = req.params.id;
-  db.query('SELECT price_standard, price_vip, price_student, price_premium FROM events WHERE id=?', [eventId], (err, rows) => {
+  db.query('SELECT price_standard, price_vip, price_premium FROM events WHERE id=?', [eventId], (err, rows) => {
     if (err || !rows.length) return res.status(404).json([]);
     const prices = rows[0];
     res.json([
       { key: 'general', label: 'General Admission', price: prices.price_standard },
       { key: 'vip', label: 'VIP Pass', price: prices.price_vip },
-      { key: 'student', label: 'Student Ticket', price: prices.price_student },
       { key: 'premium', label: 'Premium Experience', price: prices.price_premium }
     ].filter(t => t.price > 0));
   });
@@ -1230,6 +1264,41 @@ app.post('/categories', authenticateToken, (req, res) => {
       res.json({ message: 'Category created', categoryId: result.insertId });
     });
   });
+});
+// Get all speakers with their sessions (for speakers.html)
+app.get('/speakers', authenticateToken, (req, res) => {
+  // Get all speakers with names from speakers or users table
+  db.query(
+    `SELECT s.id AS speaker_id, 
+            COALESCE(s.first_name, u.first_name) AS first_name, 
+            COALESCE(s.last_name, u.last_name) AS last_name, 
+            s.bio, s.photo
+     FROM speakers s
+     LEFT JOIN users u ON s.user_id = u.id`,
+    (err, speakers) => {
+      if (err) return res.status(500).json({ error: 'Failed to fetch speakers' });
+      // Get sessions for each speaker
+      db.query(
+        `SELECT ss.speaker_id, se.id AS session_id, se.title, se.description
+         FROM session_speakers ss
+         JOIN sessions se ON ss.session_id = se.id`,
+        (err2, sessionRows) => {
+          if (err2) return res.status(500).json({ error: 'Failed to fetch sessions' });
+          // Attach sessions to each speaker
+          speakers.forEach(sp => {
+            sp.sessions = sessionRows
+              .filter(sess => sess.speaker_id === sp.speaker_id)
+              .map(sess => ({
+                id: sess.session_id,
+                title: sess.title,
+                description: sess.description
+              }));
+          });
+          res.json(speakers);
+        }
+      );
+    }
+  );
 });
 
 // --- Example: Emit notification when a new event is added ---
@@ -1287,12 +1356,13 @@ app.post('/create-event', authenticateToken, (req, res) => {
         console.error('Error inserting event:', err);
         return res.status(500).json({ error: 'Failed to create event', details: err.message });
       }
-      // Emit notification to all users
+      // EMIT notification to all users
       io.emit('notification', {
         type: 'event',
-        message: `New event "${title}" added! Register now!`
+        message: `A new event "${req.body.title}" has been added!`,
+        eventId: result.insertId
       });
-      res.json({ message: 'Event created successfully', eventId: result.insertId });
+      res.json({ success: true, eventId: result.insertId });
     }
   );
 });
@@ -1350,10 +1420,20 @@ function rbacAdmin(req, res, next) {
 // --- ADMIN ROUTES ---
 // Only admin can view/manage all users
 app.get('/users', authenticateToken, authorizeRoles('admin'), (req, res) => {
-  db.query('SELECT * FROM users', (err, results) => {
-    if (err) return res.status(500).json({ error: 'Failed to fetch users' });
-    res.json(results);
-  });
+  if (req.query.notSpeaker) {
+    db.query(
+      `SELECT id, first_name, last_name, username FROM users WHERE id NOT IN (SELECT user_id FROM speakers)`,
+      (err, users) => {
+        if (err) return res.status(500).json({ error: 'Failed to fetch users' });
+        res.json(users);
+      }
+    );
+  } else {
+    db.query(`SELECT id, first_name, last_name, username FROM users`, (err, users) => {
+      if (err) return res.status(500).json({ error: 'Failed to fetch users' });
+      res.json(users);
+    });
+  }
 });
 
 // Only admin can delete any user
@@ -1404,7 +1484,6 @@ app.get('/admin/registrations', authenticateToken, authorizeRoles('admin'), (req
 });
 
 // --- ORGANIZER ROUTES ---
-// Organizer can create events
 app.post('/events', authenticateToken, authorizeRoles('organizer', 'admin'), (req, res) => {
   const {
     title,
@@ -1512,6 +1591,34 @@ app.post('/sessions/:id/materials', authenticateToken, authorizeRoles('speaker')
     res.json({ message: 'Material uploaded' });
   });
 });
+app.post('/speakers', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  const { first_name, last_name, bio, photo } = req.body;
+  if (!first_name || !last_name) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  db.query(
+    `INSERT INTO speakers (first_name, last_name, bio, photo, user_id) VALUES (?, ?, ?, ?, NULL)`,
+    [first_name, last_name, bio || '', photo || null],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: 'Failed to add speaker' });
+      res.json({ success: true });
+    }
+  );
+});
+
+// PUT /speakers/:id
+app.put('/speakers/:id', authenticateToken, (req, res) => {
+  const { first_name, last_name } = req.body;
+  const id = req.params.id;
+  db.query(
+    'UPDATE speakers SET first_name = ?, last_name = ? WHERE id = ?',
+    [first_name, last_name, id],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: 'Failed to update speaker' });
+      res.json({ success: true });
+    }
+  );
+});
 
 // --- VENDOR ROUTES ---
 app.get('/vendor/booths', authenticateToken, authorizeRoles('vendor'), (req, res) => {
@@ -1536,6 +1643,33 @@ app.post('/register', authenticateToken, authorizeRoles('attendee'), (req, res) 
 });
 app.get('/my-registrations', authenticateToken, authorizeRoles('attendee', 'user', 'speaker', 'vendor'), (req, res) => {
   // ...your existing logic...
+});
+app.get('/my-tickets', authenticateToken, (req, res) => {
+  const userId = req.user.id;
+  const query = `
+    SELECT 
+      p.id,
+      p.event_id,
+      e.title AS event_name,
+      e.start AS event_date,
+      e.venue,
+      p.ticket_type,
+      p.quantity,
+      p.total_price,
+      p.payment_method,
+      p.created_at
+    FROM purchases p
+    JOIN events e ON p.event_id = e.id
+    WHERE p.user_id = ?
+    ORDER BY p.created_at DESC
+  `;
+  db.query(query, [userId], (err, results) => {
+    if (err) {
+      console.error('Error fetching tickets:', err);
+      return res.status(500).json({ error: 'Failed to fetch tickets' });
+    }
+    res.json(results);
+  });
 });
 
 // ========================
@@ -1614,121 +1748,130 @@ app.get('/my-permissions', authenticateToken, (req, res) => {
   });
 });
 
-// --- FRONTEND ---
-// After login, redirect user to their dashboard based on user_type
-// Example (pseudo-code for frontend):
-/*
-if (user_type === 'admin') window.location.href = '/admin-dashboard.html';
-if (user_type === 'organizer') window.location.href = '/organizer-dashboard.html';
-if (user_type === 'speaker') window.location.href = '/speaker-dashboard.html';
-if (user_type === 'vendor') window.location.href = '/vendor-dashboard.html';
-if (user_type === 'attendee') window.location.href = '/attendee-dashboard.html';
-*/
 
-// Middleware to check for admin role
-function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Only admins can perform this action.' });
+app.post('/admin-verify', authenticateToken, (req, res) => {
+  if (req.user.user_type !== 'admin') {
+    return res.status(403).json({ error: 'Not an admin.' });
   }
-  next();
-}
+  const { access_code } = req.body;
+  db.query('SELECT admin_access_code FROM users WHERE id = ?', [req.user.id], (err, results) => {
+    if (err || results.length === 0) return res.status(500).json({ error: 'DB error' });
+    if (results[0].admin_access_code === access_code) {
+      res.json({ success: true });
+    } else {
+      res.status(403).json({ error: 'Invalid admin access code.' });
+    }
+  });
+});
 
-// Edit session (PUT)
-app.put('/sessions/:id', authenticateToken, requireAdmin, (req, res) => {
-  const { id } = req.params;
-  const { title, description, capacity, start_time, end_time, event_id } = req.body;
-  const query = 'UPDATE sessions SET title=?, description=?, capacity=?, start_time=?, end_time=?, event_id=? WHERE id=?';
+app.post('/cancel-registration/:regId', authenticateToken, (req, res) => {
+  const regId = req.params.regId;
+  const userId = req.user.id;
+  const userRole = req.user.role; // Make sure you set this in your JWT or session
+
+  let query, params;
+  if (userRole === 'admin') {
+    query = 'UPDATE registrations SET status="cancelled" WHERE id=?';
+    params = [regId];
+  } else {
+    query = 'UPDATE registrations SET status="cancelled" WHERE id=? AND user_id=?';
+    params = [regId, userId];
+  }
+
+  db.query(query, params, (err, result) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Registration not found' });
+    res.json({ success: true });
+  });
+});
+
+// --- COMMENTS ENDPOINTS ---
+
+// Add a comment to an event (attendee/user only)
+app.post('/events/:eventId/comment', authenticateToken, authorizeRoles('attendee', 'user'), (req, res) => {
+  const eventId = req.params.eventId;
+  const userId = req.user.id;
+  const { comment, rating } = req.body;
+  if (!comment || !rating) {
+    return res.status(400).json({ error: 'Comment and rating are required.' });
+  }
+  const insertQuery = `
+    INSERT INTO event_comments (event_id, user_id, comment, rating, created_at)
+    VALUES (?, ?, ?, ?, NOW())
+  `;
+  db.query(insertQuery, [eventId, userId, comment, rating], (err, result) => {
+    if (err) {
+      console.error('Error adding comment:', err);
+      return res.status(500).json({ error: 'Failed to add comment' });
+    }
+    res.json({ success: true, commentId: result.insertId });
+  });
+});
+
+// Get all comments for an event (anyone can
+app.get('/events/:eventId/comments', authenticateToken, (req, res) => {
+  const eventId = req.params.eventId;
+  // This query should NOT filter by user_id!
   db.query(
-    query,
-    [title, description, capacity, safeDate(start_time), safeDate(end_time), event_id, id],
-    (err, result) => {
+    `
+    SELECT ec.*, u.username 
+    FROM event_comments ec 
+    JOIN users u ON ec.user_id = u.id 
+    WHERE ec.event_id = ?
+    ORDER BY ec.created_at DESC
+    `,
+    [eventId],
+    (err, results) => {
       if (err) {
-        console.error('Error updating session:', err.message);
-        return res.status(500).json({ error: 'Failed to update session' });
+        console.error('Error fetching comments:', err);
+        return res.status(500).json({ error: 'Failed to fetch comments' });
       }
-      res.json({ message: 'Session updated successfully' });
+      res.json(results);
     }
   );
 });
 
-// Delete session (DELETE)
-app.delete('/sessions/:id', authenticateToken, requireAdmin, (req, res) => {
-  const { id } = req.params;
-  const query = 'DELETE FROM sessions WHERE id=?';
-  db.query(query, [id], (err, result) => {
-    if (err) {
-      console.error('Error deleting session:', err.message);
-      return res.status(500).json({ error: 'Failed to delete session' });
+// Get all speakers (for dropdowns, etc.)
+app.get('/all-speakers', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  db.query(
+    `SELECT s.id as speaker_id, s.first_name, s.last_name, s.bio, s.photo
+     FROM speakers s`,
+    (err, results) => {
+      if (err) return res.status(500).json({ error: 'Failed to fetch speakers' });
+      res.json(results);
     }
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
-    res.json({ message: 'Session deleted successfully' });
-  });
+  );
 });
 
-app.post('/cancel-registration/:id', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
-  const registrationId = req.params.id;
-  // Optionally: check if registration exists and is not already cancelled
-  const selectQuery = 'SELECT * FROM registrations WHERE id = ?';
-  db.query(selectQuery, [registrationId], (err, results) => {
-    if (err) {
-      console.error('Error fetching registration:', err);
-      return res.status(500).json({ error: 'Failed to fetch registration' });
-    }
-    if (results.length === 0) {
-      return res.status(404).json({ error: 'Registration not found' });
-    }
-    if (results[0].status === 'cancelled') {
-      return res.json({ success: true, message: 'Already cancelled' });
-    }
-    // Update status to cancelled
-    const updateQuery = 'UPDATE registrations SET status = "cancelled" WHERE id = ?';
-    db.query(updateQuery, [registrationId], (err2, result) => {
-      if (err2) {
-        console.error('Error cancelling registration:', err2);
-        return res.status(500).json({ error: 'Failed to cancel registration' });
-      }
-      res.json({ success: true, message: 'Registration cancelled' });
+// Assign speakers to a session (replace all assignments)
+app.post('/sessions/:id/speakers', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
+  const sessionId = req.params.id;
+  const { speakerIds } = req.body; // Array of speaker ID
+  if (!Array.isArray(speakerIds)) return res.status(400).json({ error: 'speakerIds must be an array' });
+
+  db.query('DELETE FROM session_speakers WHERE session_id = ?', [sessionId], (err) => {
+    if (err) return res.status(500).json({ error: 'Failed to clear old speakers' });
+    if (speakerIds.length === 0) return res.json({ success: true });
+
+    const values = speakerIds.map(sid => [sessionId, sid]);
+    db.query('INSERT INTO session_speakers (session_id, speaker_id) VALUES ?', [values], (err2) => {
+      if (err2) return res.status(500).json({ error: 'Failed to assign speakers' });
+      res.json({ success: true });
     });
   });
 });
 
-app.post('/confirm-registration/:id', authenticateToken, authorizeRoles('admin', 'organizer'), (req, res) => {
-  const registrationId = req.params.id;
-  const selectQuery = 'SELECT * FROM registrations WHERE id = ?';
-  db.query(selectQuery, [registrationId], (err, results) => {
-    if (err) {
-      console.error('Error fetching registration:', err);
-      return res.status(500).json({ error: 'Failed to fetch registration' });
+// Get speakers for a session (works for both user-linked and guest speakers)
+app.get('/sessions/:id/speakers', authenticateToken, (req, res) => {
+  db.query(
+    `SELECT s.id as speaker_id, s.first_name, s.last_name, s.bio, s.photo
+     FROM session_speakers ss
+     JOIN speakers s ON ss.speaker_id = s.id
+     WHERE ss.session_id = ?`,
+    [req.params.id],
+    (err, speakers) => {
+      if (err) return res.status(500).json({ error: 'Failed to fetch session speakers' });
+      res.json(speakers);
     }
-    if (results.length === 0) {
-      return res.status(404).json({ error: 'Registration not found' });
-    }
-    if (results[0].status === 'confirmed') {
-      return res.json({ success: true, message: 'Already confirmed' });
-    }
-    // Update status to confirmed
-    const updateQuery = 'UPDATE registrations SET status = "confirmed" WHERE id = ?';
-    db.query(updateQuery, [registrationId], (err2, result) => {
-      if (err2) {
-        console.error('Error confirming registration:', err2);
-        return res.status(500).json({ error: 'Failed to confirm registration' });
-      }
-      res.json({ success: true, message: 'Registration confirmed' });
-    });
-  });
-});
-
-app.get('/my-categories', authenticateToken, authorizeRoles('organizer'), (req, res) => {
-  const query = `
-    SELECT DISTINCT c.*
-    FROM categories c
-    JOIN events e ON e.category_id = c.id
-    WHERE e.organizer = ?
-  `;
-  db.query(query, [req.user.id], (err, results) => {
-    if (err) return res.status(500).json({ error: 'Failed to fetch categories' });
-    res.json(results);
-  });
+  );
 });

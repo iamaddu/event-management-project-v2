@@ -2,36 +2,66 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>My Favorites - EventSphere</title>
+  <title>My Favorites - EventHub</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <style>
     body { font-family: 'Poppins', sans-serif; background: #222; color: #fff; }
     .fav-card { background: #333; border-radius: 10px; padding: 20px; margin: 20px 0; }
     .remove-btn { color: #f44336; cursor: pointer; }
+    .fav-card img { width: 100%; max-width: 300px; border-radius: 8px; margin-bottom: 10px; }
+    .fav-meta { font-size: 13px; color: #bbb; margin-bottom: 8px; }
+    .fav-title { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; }
+    .fav-desc { font-size: 0.98em; color: #eee; margin-bottom: 10px; }
   </style>
 </head>
 <body>
   <h1>My Favorite Events</h1>
   <div id="fav-list"></div>
   <script>
+    // Fetch favorite events for the logged-in user from backend
     function loadFavs() {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        document.getElementById('fav-list').innerHTML = '<div>Please log in to see your favorites.</div>';
+        return;
+      }
       fetch('/favorites', {
-        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
-      }).then(res => res.json()).then(favs => {
-        document.getElementById('fav-list').innerHTML = favs.map(f =>
-          `<div class="fav-card">
-            <b>${f.title}</b> <span style="font-size:12px;">(${f.venue}, ${new Date(f.start).toLocaleString()})</span>
-            <span class="remove-btn" onclick="removeFav(${f.event_id})"><i class="fas fa-heart-broken"></i> Remove</span>
-          </div>`
-        ).join('') || '<div>No favorites yet.</div>';
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+      .then(res => res.json())
+      .then(events => {
+        if (!Array.isArray(events) || !events.length) {
+          document.getElementById('fav-list').innerHTML = '<div>No favorites yet.</div>';
+          return;
+        }
+        document.getElementById('fav-list').innerHTML = events.map(f => `
+          <div class="fav-card">
+            <img src="${f.image_url || f.image || 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb'}" alt="${f.title}">
+            <div class="fav-title">${f.title}</div>
+            <div class="fav-meta">
+              <i class="fas fa-calendar"></i> ${new Date(f.start || f.start_time).toLocaleString()}<br>
+              <i class="fas fa-map-marker-alt"></i> ${f.venue || f.location || 'N/A'}
+            </div>
+            <div class="fav-desc">${f.description ? f.description.substring(0, 120) + (f.description.length > 120 ? '...' : '') : ''}</div>
+            <span class="remove-btn" onclick="removeFav('${f.id}')"><i class="fas fa-heart-broken"></i> Remove</span>
+          </div>
+        `).join('');
+      })
+      .catch(() => {
+        document.getElementById('fav-list').innerHTML = '<div>Failed to load favorites.</div>';
       });
     }
+
+    // Remove favorite (calls backend)
     function removeFav(event_id) {
-      fetch('/favorites/' + event_id, {
+      const token = localStorage.getItem('token');
+      fetch(`/favorites/${event_id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
-      }).then(() => loadFavs());
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+      .then(() => loadFavs());
     }
+
     loadFavs();
   </script>
 </body>

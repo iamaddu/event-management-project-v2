@@ -440,7 +440,16 @@
               confirmationModal.style.display = 'flex';
               await fetchMyRegistrations();
             } else {
-              alert('Failed to cancel registration.');
+              let msg = 'Failed to cancel registration.';
+              try {
+                const data = await res.json();
+                if (data && data.error) msg = data.error;
+              } catch {
+                // If not JSON, fallback to text
+                const text = await res.text();
+                msg = text;
+              }
+              alert(msg);
             }
           } catch (err) {
             alert('Error cancelling registration.');
@@ -593,7 +602,15 @@
         alert('You do not have permission to access this page.');
         window.location.href = 'home.html';
       }
-      fetchMyRegistrations();
+      // Only show registrations for the logged-in user
+      fetch('/my-registrations', {
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+      })
+        .then(res => res.json())
+        .then(registrations => {
+          // Render your registrations here
+          renderRegistrations(registrations);
+        });
     });
   </script>
 </body>

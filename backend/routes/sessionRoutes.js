@@ -1,3 +1,4 @@
+
 const express = require('express');
 const router = express.Router();
 const mysql = require('mysql');
@@ -31,7 +32,7 @@ router.get('/', (req, res) => {
   const search = req.query.search || '';
   const query = `
     SELECT s.*, 
-      GROUP_CONCAT(sp.name SEPARATOR ', ') AS speakers
+      JSON_ARRAYAGG(JSON_OBJECT('id', sp.id, 'name', sp.name)) AS speakers
     FROM sessions s
     LEFT JOIN session_speakers ss ON s.id = ss.session_id
     LEFT JOIN speakers sp ON ss.speaker_id = sp.id

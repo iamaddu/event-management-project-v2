@@ -1,0 +1,320 @@
+Block 1 (function() syntax):
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Hide Create Event button
+  document.querySelectorAll('a[href="create_event.html"], .btn-primary').forEach(el => el.style.display = 'none');
+  // Hide update/delete buttons on event cards
+  const observer = new MutationObserver(() => {
+    document.querySelectorAll('.update-btn, .delete-btn').forEach(btn => btn.style.display = 'none');
+  });
+  observer.observe(document.getElementById('eventsContainer'), { childList: true, subtree: true });
+  // Hide update modal if present
+  const updateModal = document.getElementById('updateModal');
+  if (updateModal) updateModal.style.display = 'none';
+});
+
+Block 2 (arrow function syntax):
+
+document.addEventListener('DOMContentLoaded', () => {
+  // DOM Elements
+  const eventsContainer = document.getElementById('eventsContainer');
+  const eventModal = document.getElementById('eventModal');
+  const registrationModal = document.getElementById('registrationModal');
+  const updateModal = document.getElementById('updateModal');
+  const closeModalBtn = document.getElementById('closeModal');
+  const closeUpdateModalBtn = document.getElementById('closeUpdateModal');
+  const cancelRegistrationBtn = document.getElementById('cancelRegistration');
+  const cancelUpdateBtn = document.getElementById('cancelUpdate');
+  const registrationForm = document.getElementById('registrationForm');
+  const updateForm = document.getElementById('updateForm');
+  const modalRegisterBtn = document.getElementById('modalRegisterBtn');
+  const registerEventTitle = document.getElementById('registerEventTitle');
+  const updateEventTitleText = document.getElementById('updateEventTitleText');
+  const categoryFilters = document.getElementById('categoryFilters');
+  const searchInput = document.getElementById('searchInput');
+  const searchBtn = document.getElementById('searchBtn');
+  
+  // Global variables
+  let currentEvent = null;
+  let events = [];
+  let categories = [];
+  let userRegistrations = new Set();
+  let currentEventIdForComments = null;
+
+  // Category images mapping
+  const categoryImages = {
+    1: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30', // Music
+    2: 'https://images.unsplash.com/photo-1511578314322-379afb476865', // Sports
+    3: 'https://images.unsplash.com/photo-1431540015161-0bf868a2d407', // Business
+    4: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87', // Food
+    5: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30', // Art
+    6: 'https://images.unsplash.com/photo-1519671482749-fd09be7ccebf', // Technology
+    default: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb' // Default
+  };
+
+  // Initialize the application
+  async function init() {
+    await fetchCategories();
+    await fetchEvents();
+    await fetchUserRegistrations();
+    setupEventListeners();
+  }
+
+  // Fetch categories from backend
+  async function fetchCategories() {
+    try {
+      const res = await fetch('/categories');
+      if (!res.ok) throw new Error('Failed to fetch categories');
+      categories = await res.json();
+      renderCategoryFilters();
+    } catch (error) {
+      console.error(error);
+      categoryFilters.innerHTML = '<p class="empty-state">Failed to load categories.</p>';
+    }
+  }
+
+  // Render category filter buttons
+  function renderCategoryFilters() {
+    categoryFilters.innerHTML = '';
+    
+    // All events button
+    const allBtn = document.createElement('button');
+    allBtn.textContent = 'All';
+    allBtn.className = 'filter-btn active';
+    allBtn.addEventListener('click', () => {
+      setActiveCategory(null);
+      renderEvents(events);
+    });
+    categoryFilters.appendChild(allBtn);
+
+    // Category buttons
+    categories.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.textContent = cat.name;
+      btn.className = 'filter-btn';
+      btn.addEventListener('click', () => {
+        setActiveCategory(cat.id);
+        renderEvents(events.filter(e => e.category_id === cat.id));
+      });
+      categoryFilters.appendChild(btn);
+    });
+  }
+
+  // Set active category button
+  function setActiveCategory(categoryId) {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    
+    if (categoryId === null) {
+      document.querySelector('.filter-btn').classList.add('active');
+    } else {
+      Array.from(categoryFilters.children).forEach(btn => {
+        if (btn.textContent === categories.find(c => c.id === categoryId)?.name) {
+          btn.classList.add('active');
+        }
+      });
+    }
+  }
+
+  // Fetch events from backend
+  async function fetchEvents() {
+    let url = '/events';
+    // Use the RBAC role set earlier
+    if (window.userRole === 'organizer') {
+      url = '/my-events';
+    }
+    const response = await fetch(url, {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+    });
+    if (!response.ok) throw new Error('Failed to fetch events');
+    events = await response.json();
+
+    // No need to filter again for organizer, backend already does it
+    renderEvents(events);
+  }
+
+  // Fetch user registrations to mark registered events
+  async function fetchUserRegistrations() {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        userRegistrations = new Set();
+        return;
+      }
+      
+      const res = await fetch('/my-registrations', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) {
+        userRegistrations = new Set();
+        return;
+      }
+      
+      const registrations = await res.json();
+      userRegistrations = new Set(registrations.map(r => r.event_id));
+    } catch (error) {
+      console.error(error);
+      userRegistrations = new Set();
+    }
+  }
+
+  // Render events with registration status
+  function renderEvents(eventList) {
+    if (eventList.length === 0) {
+      eventsContainer.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-calendar-plus"></i>
+          <p>No events found matching your criteria.</p>
+        </div>
+      `;
+      return;
+    }
+    
+    eventsContainer.innerHTML = '';
+    eventList.forEach(event => {
+      const eventDate = new Date(event.start_time || event.start || new Date());
+      const now = new Date();
+
+      // --- Registration Button Logic ---
+      let registrationButton = '';
+      // Hide registration button for organizers on their own events
+      if (
+        (window.userRole === 'organizer' && String(event.organizer) === String(localStorage.getItem('user_id')))
+        || window.userRole === 'admin'
+      ) {
+        registrationButton = ''; // Organizer/admin: no registration button
+      } else if (userRegistrations.has(event.id)) {
+        registrationButton = '<button class="register-btn" disabled>Registered</button>';
+      } else if (eventDate < now) {
+        registrationButton = '<button class="register-btn" disabled>Event Ended</button>';
+      } else {
+        registrationButton = `<button class="register-btn" data-event-id="${event.id}">Register Now</button>`;
+      }
+
+      // --- Update/Delete Buttons ---
+      let updateDeleteButtons = '';
+      if (
+        window.userRole === 'admin' ||
+        (window.userRole === 'organizer' && String(event.organizer) === String(localStorage.getItem('user_id')))
+      ) {
+        updateDeleteButtons = `
+          <button class="update-btn" data-event-id="${event.id}">Update</button>
+          <button class="delete-btn" data-event-id="${event.id}">Delete</button>
+        `;
+      }
+
+      // --- Event Card ---
+      const card = document.createElement('div');
+      card.className = 'event-card';
+      let favButton = '';
+      if (window.userRole === 'attendee' || window.userRole === 'user') {
+        favButton = `<button onclick="addToFavs(${event.id})" class="add-to-favorites">
+          Add to Favorites <i class='fas fa-heart'></i>
+        </button>`;
+      }
+      card.innerHTML = `
+        ${userRegistrations.has(event.id) ? '<div class="registered-badge">Registered</div>' : ''}
+        <img src="${event.image_url || event.image || categoryImages[event.category_id] || categoryImages.default}" 
+             alt="${event.title}" class="event-image">
+        <div class="event-details">
+          <h3 class="event-title">${event.title}</h3>
+          <div class="event-meta">
+            <span><i class="fas fa-calendar"></i> ${eventDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            <span><i class="fas fa-map-marker-alt"></i> ${event.location || 'N/A'}</span>
+            <span><i class="fas fa-users"></i> ${event.capacity || 'N/A'} attendees</span>
+          </div>
+          <p class="event-description">${event.description || 'No description available.'}</p>
+          <div class="event-actions">
+            <button class="view-details" data-event-id="${event.id}">View Details</button>
+            ${updateDeleteButtons}
+            ${registrationButton}
+            <button class="event-comments-btn" data-id="${event.id}"><i class="fas fa-comments"></i> Comments</button>
+          </div>
+        </div>
+        ${favButton}
+      `;
+      eventsContainer.appendChild(card);
+    });
+
+    // Add event listeners for buttons
+    setupCardEventListeners();
+  }
+
+  // Open event details modal
+  function openEventModal(eventId) {
+    const selectedEvent = events.find(ev => ev.id == eventId);
+    if (!selectedEvent) return;
+
+    currentEvent = selectedEvent;
+    const eventDate = new Date(selectedEvent.start_time || selectedEvent.start || new Date());
+    const endDate = selectedEvent.end_time ? new Date(selectedEvent.end_time) : null;
+
+    document.getElementById('modalEventTitle').textContent = selectedEvent.title;
+    document.getElementById('modalEventDate').textContent = eventDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    document.getElementById('modalEventLocation').textContent = selectedEvent.location || 'N/A';
+    document.getElementById('modalEventCapacity').textContent = (selectedEvent.capacity || 'N/A') + ' attendees';
+    document.getElementById('modalEventImage').src = selectedEvent.image_url || selectedEvent.image || categoryImages[selectedEvent.category_id] || categoryImages.default;
+    document.getElementById('modalEventImage').alt = selectedEvent.title;
+    document.getElementById('modalEventDescription').textContent = selectedEvent.description || 'No description available.';
+    document.getElementById('modalEventOrganizer').textContent = selectedEvent.organizer || 'N/A';
+    document.getElementById('modalEventStart').textContent = eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('modalEventEnd').textContent = endDate ? endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+    
+    // Handle ticket prices
+    let priceText = 'Free';
+    if (selectedEvent.price_standard || selectedEvent.price_vip || selectedEvent.price_premium) {
+      const standardPrice = selectedEvent.price_standard ? `$${selectedEvent.price_standard.toFixed(2)}` : '';
+      const vipPrice = selectedEvent.price_vip ? `$${selectedEvent.price_vip.toFixed(2)}` : '';
+      const premiumPrice = selectedEvent.price_premium ? `$${selectedEvent.price_premium.toFixed(2)}` : '';
+      priceText = [standardPrice, vipPrice, premiumPrice].filter(p => p).join(' - ');
+    }
+    document.getElementById('modalEventPrice').textContent = priceText;
+    
+    document.getElementById('modalEventStatus').textContent = selectedEvent.status || 'Active';
+
+    eventModal.classList.add('show');
+  }
+
+  function openRegistrationModal(eventId) {
+    // Prevent opening registration if already registered
+    if (userRegistrations.has(eventId)) {
+      alert('You have already registered for this event.');
+      return;
+    }
+    const selectedEvent = events.find(ev => ev.id == eventId);
+    if (!selectedEvent) return;
+
+    currentEvent = selectedEvent;
+    registerEventTitle.textContent = selectedEvent.title;
+    document.getElementById('eventId').value = selectedEvent.id;
+    
+    // Update ticket options based on event prices
+    const ticketTypeSelect = document.getElementById('ticketType');
+    ticketTypeSelect.innerHTML = '<option value="">Select Ticket</option>';
+    
+    if (selectedEvent.price_standard) {
+      ticketTypeSelect.innerHTML += `<option value="standard">Standard - $${selectedEvent.price_standard.toFixed(2)}</option>`;
+    }
+    if (selectedEvent.price_vip) {
+      ticketTypeSelect.innerHTML += `<option value="vip">VIP - $${selectedEvent.price_vip.toFixed(2)}</option>`;
+    }
+    if (selectedEvent.price_premium) {
+      ticketTypeSelect.innerHTML += `<option value="premium">Premium - $${selectedEvent.price_premium.toFixed(2)}</option>`;
+    }
+    if (!selectedEvent.price_standard && !selectedEvent.price_vip && !selectedEvent.price_premium) {
+      ticketTypeSelect.innerHTML += '<option value="free">Free Admission</option>';
+    }
+
+    registrationModal.classList.add('show');
+  }
+
+  // Open update modal with event data
+  function openUpdateModal(eventData) {
+    currentEvent = eventData;
+    updateEventTitleText.textContent = eventData.title;
+    document.getElementById('updateEventId').value = eventData.id;
+    document.getElementById('updateTitle').value = eventData.title;
+    document.getElementById('updateDescription').value = eventData.description || '';
+    document.getElementById('updateLocation').value = eventData.location || '';
